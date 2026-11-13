@@ -27,15 +27,15 @@ flowchart TD
 
 ## Tickets
 
-### [/] TASK-001: Project Scaffolding, Tailwind Setup & SQLite WAL Driver (In Progress)
+### [x] TASK-001: Project Scaffolding, Tailwind Setup & SQLite WAL Driver (Completed)
 - **Description:** Initialize the Next.js project with TypeScript, Tailwind CSS, and embedded SQLite database driver configured for WAL mode.
 - **Blocked By:** None
 - **Acceptance Criteria:**
-  - [ ] `package.json` initialized with Next.js, React 19, TypeScript, Tailwind CSS, and Lucide icons.
-  - [ ] SQLite connection helper in `src/lib/db/client.ts` initializes `data/workspace.db` with `PRAGMA journal_mode = WAL;`.
-  - [ ] Database schema in `src/lib/db/schema.sql` creates tables: `projects`, `notes`, `tasks`, `messages`, `undo_snapshots`.
-  - [ ] `.gitignore` properly excludes `.env.local`, `data/*.db*`, and `node_modules`.
-  - [ ] A clean `.env.example` is created with placeholder keys.
+  - [x] `package.json` initialized with Next.js, React 19, TypeScript, Tailwind CSS, and Lucide icons.
+  - [x] SQLite connection helper in `src/lib/db/client.ts` initializes `data/workspace.db` with `PRAGMA journal_mode = WAL;`.
+  - [x] Database schema in `src/lib/db/schema.sql` creates tables: `projects`, `notes`, `tasks`, `messages`, `undo_snapshots`.
+  - [x] `.gitignore` properly excludes `.env.local`, `data/*.db*`, and `node_modules`.
+  - [x] A clean `.env.example` is created with placeholder keys.
 - **Verification Steps:**
   - Run database initialization script and verify `workspace.db` is created in WAL mode.
   - Run `npm run dev` and verify clean blank layout loads.
