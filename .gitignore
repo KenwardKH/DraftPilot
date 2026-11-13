@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Local Environment Secrets & Configuration
+.env.local
+.env*.local
+.env
+
+# SQLite Database Files (WAL, SHM, DB)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
+
