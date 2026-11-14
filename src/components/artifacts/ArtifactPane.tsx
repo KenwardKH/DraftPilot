@@ -44,6 +44,15 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Visual diff highlighting state
+  const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
+  const [isNoteHighlighted, setIsNoteHighlighted] = useState(false);
+  const currentProjectIdRef = useRef<string | null>(null);
+  const prevTasksRef = useRef<Map<string, { status: string; title: string }>>(new Map());
+  const prevNoteContentRef = useRef<string | null>(null);
+  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const noteHighlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Tasks state
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
@@ -56,10 +65,22 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      if (noteHighlightTimerRef.current) clearTimeout(noteHighlightTimerRef.current);
+    };
+  }, []);
+
   // Load project artifacts when activeProjectId changes
   const loadArtifacts = useCallback(async (projectId: string) => {
     try {
       setIsLoading(true);
+      const isSameProject = currentProjectIdRef.current === projectId;
+      currentProjectIdRef.current = projectId;
+
       const [noteRes, tasksRes] = await Promise.all([
         fetch(`/api/notes?projectId=${projectId}`),
         fetch(`/api/tasks?projectId=${projectId}`),
@@ -67,14 +88,46 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
 
       if (noteRes.ok) {
         const noteData = await noteRes.json();
+        const newContent = noteData.note.content;
+
+        if (isSameProject && prevNoteContentRef.current !== null && prevNoteContentRef.current !== newContent) {
+          setIsNoteHighlighted(true);
+          if (noteHighlightTimerRef.current) clearTimeout(noteHighlightTimerRef.current);
+          noteHighlightTimerRef.current = setTimeout(() => setIsNoteHighlighted(false), 2500);
+        }
+        prevNoteContentRef.current = newContent;
         setNote(noteData.note);
-        setNoteContent(noteData.note.content);
+        setNoteContent(newContent);
         setLastSavedTime(new Date(noteData.note.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       }
 
       if (tasksRes.ok) {
         const tasksData = await tasksRes.json();
-        setTasks(tasksData.tasks || []);
+        const newTasks: Task[] = tasksData.tasks || [];
+
+        if (isSameProject && prevTasksRef.current.size > 0) {
+          const changedIds = new Set<string>();
+          for (const task of newTasks) {
+            const prev = prevTasksRef.current.get(task.id);
+            if (!prev || prev.status !== task.status || prev.title !== task.title) {
+              changedIds.add(task.id);
+            }
+          }
+          if (changedIds.size > 0) {
+            setHighlightedTaskIds(changedIds);
+            if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+            highlightTimerRef.current = setTimeout(() => {
+              setHighlightedTaskIds(new Set());
+            }, 2500);
+          }
+        }
+
+        const newMap = new Map<string, { status: string; title: string }>();
+        for (const t of newTasks) {
+          newMap.set(t.id, { status: t.status, title: t.title });
+        }
+        prevTasksRef.current = newMap;
+        setTasks(newTasks);
       }
     } catch (err) {
       console.error('Failed to load artifacts:', err);
@@ -87,6 +140,11 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
     if (activeProjectId) {
       loadArtifacts(activeProjectId);
     } else {
+      currentProjectIdRef.current = null;
+      prevTasksRef.current.clear();
+      prevNoteContentRef.current = null;
+      setHighlightedTaskIds(new Set());
+      setIsNoteHighlighted(false);
       setNote(null);
       setNoteContent('');
       setTasks([]);
@@ -96,6 +154,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
   // Note auto-save handler (debounced 600ms)
   const handleContentChange = (val: string) => {
     setNoteContent(val);
+    prevNoteContentRef.current = val;
     if (!activeProjectId) return;
 
     if (autoSaveTimerRef.current) {
@@ -143,6 +202,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
 
       if (res.ok) {
         const { task } = await res.json();
+        prevTasksRef.current.set(task.id, { status: task.status, title: task.title });
         setTasks((prev) => [...prev, task]);
         setNewTaskTitle('');
         setNewTaskPriority('medium');
@@ -158,6 +218,8 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
   const handleToggleTask = async (task: Task) => {
     const nextStatus: TaskStatus = task.status === 'done' ? 'todo' : 'done';
 
+    prevTasksRef.current.set(task.id, { status: nextStatus, title: task.title });
+
     // Optimistic UI update
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t))
@@ -172,6 +234,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
     } catch (err) {
       console.error('Failed to toggle task:', err);
       // Revert on error
+      prevTasksRef.current.set(task.id, { status: task.status, title: task.title });
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t))
       );
@@ -186,6 +249,10 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
     }
 
     const titleToSave = editingTaskTitle.trim();
+    const existingTask = tasks.find((t) => t.id === taskId);
+    if (existingTask) {
+      prevTasksRef.current.set(taskId, { status: existingTask.status, title: titleToSave });
+    }
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, title: titleToSave } : t))
     );
@@ -204,6 +271,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
 
   // Delete Task handler
   const handleDeleteTask = async (taskId: string) => {
+    prevTasksRef.current.delete(taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
 
     try {
@@ -243,7 +311,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveTab('notes')}
-            className={`flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition ${
+            className={`relative flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition ${
               activeTab === 'notes'
                 ? 'border-indigo-500 text-white font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -251,11 +319,14 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
           >
             <FileText className="h-3.5 w-3.5" />
             <span>Project Notes</span>
+            {isNoteHighlighted && activeTab !== 'notes' && (
+              <span className="absolute top-1.5 right-1 h-2 w-2 rounded-full bg-indigo-400 ring-2 ring-indigo-900 animate-pulse" />
+            )}
           </button>
 
           <button
             onClick={() => setActiveTab('checklist')}
-            className={`flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition ${
+            className={`relative flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition ${
               activeTab === 'checklist'
                 ? 'border-indigo-500 text-white font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -263,6 +334,9 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
           >
             <CheckSquare className="h-3.5 w-3.5" />
             <span>Checklist</span>
+            {highlightedTaskIds.size > 0 && activeTab !== 'checklist' && (
+              <span className="absolute top-1.5 right-1 h-2 w-2 rounded-full bg-indigo-400 ring-2 ring-indigo-900 animate-pulse" />
+            )}
             {totalCount > 0 && (
               <span className="rounded-full bg-slate-800 px-1.5 py-0.2 text-[10px] text-slate-300 font-normal border border-slate-700">
                 {doneCount}/{totalCount}
@@ -335,8 +409,10 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
             {/* Editor Pane */}
             {(viewMode === 'edit' || viewMode === 'split') && (
               <div
-                className={`flex flex-col border-slate-800 ${
+                className={`flex flex-col border-slate-800 transition-all duration-700 ${
                   viewMode === 'split' ? 'w-1/2 border-r' : 'w-full'
+                } ${
+                  isNoteHighlighted ? 'ring-2 ring-indigo-500/80 bg-indigo-950/20' : ''
                 }`}
               >
                 <textarea
@@ -351,8 +427,10 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
             {/* Sanitized Preview Pane */}
             {(viewMode === 'preview' || viewMode === 'split') && (
               <div
-                className={`flex flex-col overflow-y-auto bg-slate-950/70 p-5 ${
+                className={`flex flex-col overflow-y-auto bg-slate-950/70 p-5 transition-all duration-700 ${
                   viewMode === 'split' ? 'w-1/2' : 'w-full'
+                } ${
+                  isNoteHighlighted ? 'ring-2 ring-indigo-500/80 bg-indigo-950/20' : ''
                 }`}
               >
                 <article className="prose prose-invert prose-xs max-w-none space-y-3 text-slate-200">
@@ -441,12 +519,15 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
                 filteredTasks.map((task) => {
                   const isDone = task.status === 'done';
                   const isEditing = editingTaskId === task.id;
+                  const isHighlighted = highlightedTaskIds.has(task.id);
 
                   return (
                     <div
                       key={task.id}
-                      className={`group flex items-center justify-between rounded-lg border p-2.5 transition ${
-                        isDone
+                      className={`group flex items-center justify-between rounded-lg border p-2.5 transition-all duration-500 ${
+                        isHighlighted
+                          ? 'border-indigo-500 bg-indigo-950/60 shadow-[0_0_12px_rgba(99,102,241,0.25)] ring-1 ring-indigo-500'
+                          : isDone
                           ? 'border-slate-800/40 bg-slate-950/40 text-slate-500'
                           : 'border-slate-800/80 bg-slate-900/60 text-slate-200 hover:border-slate-700'
                       }`}
@@ -508,6 +589,12 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
                       {/* Priority Badge & Action Buttons */}
                       {!isEditing && (
                         <div className="flex items-center gap-2 ml-2 shrink-0">
+                          {isHighlighted && (
+                            <span className="shrink-0 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-300 border border-indigo-500/40 animate-pulse">
+                              Updated
+                            </span>
+                          )}
+
                           <span
                             className={`rounded px-1.5 py-0.5 text-[10px] font-medium border uppercase tracking-wider ${
                               task.priority === 'high'

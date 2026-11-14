@@ -32,6 +32,7 @@ export const ToolCallRecordSchema = z.object({
   args: z.record(z.unknown()).optional(),
   data: z.unknown().optional(),
   error: z.string().optional(),
+  snapshotId: z.string().optional(),
 });
 
 export const ToolCallListSchema = z.array(ToolCallRecordSchema);

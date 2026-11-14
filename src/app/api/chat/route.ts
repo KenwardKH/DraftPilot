@@ -5,6 +5,7 @@ import { listMessagesByProjectId, saveMessage } from '@/lib/db/messages';
 import { resolveAiConfig } from '@/lib/ai/provider';
 import { buildProjectSystemPrompt } from '@/lib/ai/context';
 import { WORKSPACE_TOOLS, executeWorkspaceTool, ExecutedToolCall } from '@/lib/ai/tools';
+import { createUndoSnapshot } from '@/lib/db/snapshots';
 import crypto from 'node:crypto';
 
 export async function POST(req: NextRequest) {
@@ -144,6 +145,15 @@ export async function POST(req: NextRequest) {
 
           // Execute any accumulated tool calls
           if (toolCallsMap.size > 0) {
+            let snapshotId: string | undefined;
+            const tempMessageId = `msg_${crypto.randomUUID()}`;
+            try {
+              // Pre-mutation snapshot of tasks and notes saved into undo_snapshots before executing tool batch
+              snapshotId = createUndoSnapshot(projectId, tempMessageId, 'all');
+            } catch (snapErr) {
+              console.error('Failed to capture undo snapshot:', snapErr);
+            }
+
             for (const [, call] of toolCallsMap) {
               if (!call.name) continue;
               let parsedArgs: Record<string, unknown> = {};
@@ -163,6 +173,7 @@ export async function POST(req: NextRequest) {
                   args: parsedArgs,
                   summary: result.summary,
                   data: result.data,
+                  snapshotId,
                 });
 
                 toolResultsToPersist.push({
@@ -177,6 +188,7 @@ export async function POST(req: NextRequest) {
                   args: parsedArgs,
                   summary: `Failed to execute ${call.name}: ${errMsg}`,
                   error: errMsg,
+                  snapshotId,
                 });
 
                 // Crucial fix: always persist matching tool result even on error to prevent orphaned tool_calls

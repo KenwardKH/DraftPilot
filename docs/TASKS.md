@@ -106,16 +106,16 @@ flowchart TD
 
 ---
 
-### [ ] TASK-007: Visual Highlighting & 1-Click Undo Snapshots
+### [x] TASK-007: Visual Highlighting & 1-Click Undo Snapshots (Completed)
 - **Description:** Add visual diff animations when artifacts mutate and build the 1-click Undo snapshot system.
 - **Blocked By:** TASK-006
 - **Acceptance Criteria:**
-  - [ ] Pre-mutation snapshot of tasks and notes saved into `undo_snapshots` before executing any tool batch.
-  - [ ] Modified tasks and note sections briefly display a highlight flash/pulse in the UI.
-  - [ ] Tool execution cards in chat feature an **"Undo Changes"** button.
-  - [ ] Clicking "Undo Changes" posts to `/api/undo`, rolls back the database state, and refreshes the artifact pane immediately.
+  - [x] Pre-mutation snapshot of tasks and notes saved into `undo_snapshots` before executing any tool batch.
+  - [x] Modified tasks and note sections briefly display a highlight flash/pulse in the UI.
+  - [x] Tool execution cards in chat feature an **"Undo Changes"** button.
+  - [x] Clicking "Undo Changes" posts to `/api/undo`, rolls back the database state, and refreshes the artifact pane immediately.
 - **Verification Steps:**
-  - Have the AI create or delete tasks; click "Undo" on the chat card; verify previous state is perfectly restored.
+  - [x] Have the AI create or delete tasks; click "Undo" on the chat card; verify previous state is perfectly restored.
 
 ---
 

@@ -160,6 +160,7 @@ export interface ExecutedToolCall {
   summary: string;
   data?: Task | Note | { taskId: string; deleted: boolean } | null;
   error?: string;
+  snapshotId?: string;
 }
 
 /**

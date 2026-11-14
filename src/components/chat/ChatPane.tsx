@@ -25,6 +25,7 @@ import {
   CheckSquare,
   Pencil,
   FileText,
+  RotateCcw,
 } from 'lucide-react';
 
 const TOOL_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
@@ -42,40 +43,123 @@ interface ChatPaneProps {
   onArtifactsMutated?: () => void;
 }
 
-function ToolCallsDisplay({ toolCalls }: { toolCalls: ToolCallRecord[] }) {
+function ToolCallsDisplay({
+  toolCalls,
+  onUndoSuccess,
+}: {
+  toolCalls: ToolCallRecord[];
+  onUndoSuccess?: () => void;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
+  const [isUndone, setIsUndone] = useState(false);
+  const [undoError, setUndoError] = useState<string | null>(null);
 
   if (!toolCalls || toolCalls.length === 0) return null;
 
+  const snapshotId = toolCalls.find((t) => t.snapshotId)?.snapshotId;
+
+  const handleUndo = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!snapshotId || isUndoing || isUndone) return;
+
+    try {
+      setIsUndoing(true);
+      setUndoError(null);
+      const res = await fetch('/api/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshotId }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to revert changes');
+      }
+
+      setIsUndone(true);
+      onUndoSuccess?.();
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Undo failed';
+      setUndoError(errMsg);
+    } finally {
+      setIsUndoing(false);
+    }
+  };
+
   return (
     <div className="mb-2.5 rounded-lg border border-indigo-900/40 bg-slate-950/70 overflow-hidden text-xs">
-      <button
-        type="button"
-        onClick={() => setIsExpanded((prev) => !prev)}
-        className="flex w-full items-center justify-between px-3 py-2 bg-indigo-950/30 hover:bg-indigo-950/50 transition text-left"
-      >
-        <div className="flex items-center gap-2 text-indigo-300 font-medium">
-          <Wrench className="h-3.5 w-3.5 text-indigo-400" />
+      <div className="flex w-full items-center justify-between px-3 py-2 bg-indigo-950/30 border-b border-indigo-900/20">
+        <button
+          type="button"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          className="flex flex-1 items-center gap-2 text-indigo-300 font-medium hover:text-indigo-200 transition text-left"
+        >
+          <Wrench className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
           <span>
             Executed {toolCalls.length} workspace mutation{toolCalls.length > 1 ? 's' : ''}
           </span>
+          <span className="text-[10px] text-slate-500 font-normal">
+            ({isExpanded ? 'click to collapse' : 'click for details'})
+          </span>
+        </button>
+
+        <div className="flex items-center gap-2">
+          {snapshotId && (
+            isUndone ? (
+              <span className="flex items-center gap-1 rounded bg-emerald-950/70 px-2 py-0.5 text-[11px] font-medium text-emerald-400 border border-emerald-800/40">
+                <Check className="h-3 w-3" />
+                <span>Undone</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={isUndoing}
+                className="flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition border border-slate-700/80 disabled:opacity-50"
+                title="Revert all workspace changes from this mutation"
+              >
+                {isUndoing ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
+                    <span>Reverting...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-3 w-3 text-indigo-300" />
+                    <span>Undo Changes</span>
+                  </>
+                )}
+              </button>
+            )
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            className="text-slate-400 hover:text-slate-200 p-0.5"
+          >
+            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
         </div>
-        <div className="flex items-center gap-1 text-slate-400">
-          <span className="text-[11px]">{isExpanded ? 'Hide' : 'Details'}</span>
-          {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </div>
+
+      {undoError && (
+        <div className="px-3 py-1 bg-rose-950/50 text-[11px] text-rose-300 border-b border-rose-900/40">
+          {undoError}
         </div>
-      </button>
+      )}
 
       {/* Summary preview when collapsed */}
       {!isExpanded && (
-        <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-indigo-900/20 truncate">
+        <div className="px-3 py-1.5 text-[11px] text-slate-400 truncate">
           {toolCalls.map((t) => t.summary || t.name).join(' • ')}
         </div>
       )}
 
       {/* Full detail list when expanded */}
       {isExpanded && (
-        <div className="divide-y divide-slate-800/60 p-1 border-t border-indigo-900/30">
+        <div className="divide-y divide-slate-800/60 p-1">
           {toolCalls.map((tool, idx) => {
             const config = TOOL_CONFIG[tool.name] || {
               icon: Wrench,
@@ -500,7 +584,12 @@ export function ChatPane({
                       <div className="whitespace-pre-wrap">{msg.content}</div>
                     ) : (
                       <div>
-                        {parsedTools.length > 0 && <ToolCallsDisplay toolCalls={parsedTools} />}
+                        {parsedTools.length > 0 && (
+                          <ToolCallsDisplay
+                            toolCalls={parsedTools}
+                            onUndoSuccess={onArtifactsMutated}
+                          />
+                        )}
                         {msg.content && (
                           <div className="prose prose-invert prose-xs max-w-none space-y-2 [&>p]:leading-relaxed [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>pre]:bg-slate-950 [&>pre]:border [&>pre]:border-slate-800 [&>pre]:p-2.5 [&>pre]:rounded-md [&>code]:bg-slate-800 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:font-mono">
                             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
@@ -529,7 +618,10 @@ export function ChatPane({
                 </div>
                 <div className="max-w-[85%] rounded-xl bg-slate-900 border border-slate-800/80 px-4 py-3 text-xs leading-relaxed text-slate-200">
                   {streamingToolCalls.length > 0 && (
-                    <ToolCallsDisplay toolCalls={streamingToolCalls} />
+                    <ToolCallsDisplay
+                      toolCalls={streamingToolCalls}
+                      onUndoSuccess={onArtifactsMutated}
+                    />
                   )}
 
                   {streamingContent ? (
