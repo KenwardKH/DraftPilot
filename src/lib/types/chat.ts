@@ -25,3 +25,27 @@ export const DeleteChatHistorySchema = z.object({
   projectId: z.string().min(1, 'Project ID is required'),
 });
 
+export const ToolCallRecordSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  summary: z.string().optional(),
+  args: z.record(z.unknown()).optional(),
+  data: z.unknown().optional(),
+  error: z.string().optional(),
+});
+
+export const ToolCallListSchema = z.array(ToolCallRecordSchema);
+export type ToolCallRecord = z.infer<typeof ToolCallRecordSchema>;
+
+export function safeParseToolCalls(raw: string | null | undefined): ToolCallRecord[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    const result = ToolCallListSchema.safeParse(parsed);
+    return result.success ? result.data : [];
+  } catch {
+    return [];
+  }
+}
+
+

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
-import { Message } from '@/lib/types/chat';
+import { Message, ToolCallRecord, safeParseToolCalls } from '@/lib/types/chat';
 import { BYOK_SETTINGS_KEY } from '@/lib/constants';
 import {
   Send,
@@ -27,13 +27,13 @@ import {
   FileText,
 } from 'lucide-react';
 
-export interface ToolCallItem {
-  id: string;
-  name: string;
-  summary: string;
-  args?: Record<string, unknown>;
-  error?: string;
-}
+const TOOL_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
+  create_task: { icon: Plus, color: 'text-emerald-400 bg-emerald-950/60 border-emerald-800/40' },
+  toggle_task: { icon: CheckSquare, color: 'text-indigo-400 bg-indigo-950/60 border-indigo-800/40' },
+  update_task: { icon: Pencil, color: 'text-sky-400 bg-sky-950/60 border-sky-800/40' },
+  delete_task: { icon: Trash2, color: 'text-rose-400 bg-rose-950/60 border-rose-800/40' },
+  edit_note: { icon: FileText, color: 'text-amber-400 bg-amber-950/60 border-amber-800/40' },
+};
 
 interface ChatPaneProps {
   activeProjectId: string | null;
@@ -42,7 +42,7 @@ interface ChatPaneProps {
   onArtifactsMutated?: () => void;
 }
 
-function ToolCallsDisplay({ toolCalls }: { toolCalls: ToolCallItem[] }) {
+function ToolCallsDisplay({ toolCalls }: { toolCalls: ToolCallRecord[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!toolCalls || toolCalls.length === 0) return null;
@@ -69,7 +69,7 @@ function ToolCallsDisplay({ toolCalls }: { toolCalls: ToolCallItem[] }) {
       {/* Summary preview when collapsed */}
       {!isExpanded && (
         <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-indigo-900/20 truncate">
-          {toolCalls.map((t) => t.summary).join(' • ')}
+          {toolCalls.map((t) => t.summary || t.name).join(' • ')}
         </div>
       )}
 
@@ -77,34 +77,20 @@ function ToolCallsDisplay({ toolCalls }: { toolCalls: ToolCallItem[] }) {
       {isExpanded && (
         <div className="divide-y divide-slate-800/60 p-1 border-t border-indigo-900/30">
           {toolCalls.map((tool, idx) => {
-            let Icon = Wrench;
-            let iconColor = 'text-indigo-400 bg-indigo-950/60 border-indigo-800/40';
-
-            if (tool.name === 'create_task') {
-              Icon = Plus;
-              iconColor = 'text-emerald-400 bg-emerald-950/60 border-emerald-800/40';
-            } else if (tool.name === 'toggle_task') {
-              Icon = CheckSquare;
-              iconColor = 'text-indigo-400 bg-indigo-950/60 border-indigo-800/40';
-            } else if (tool.name === 'update_task') {
-              Icon = Pencil;
-              iconColor = 'text-sky-400 bg-sky-950/60 border-sky-800/40';
-            } else if (tool.name === 'delete_task') {
-              Icon = Trash2;
-              iconColor = 'text-rose-400 bg-rose-950/60 border-rose-800/40';
-            } else if (tool.name === 'edit_note') {
-              Icon = FileText;
-              iconColor = 'text-amber-400 bg-amber-950/60 border-amber-800/40';
-            }
+            const config = TOOL_CONFIG[tool.name] || {
+              icon: Wrench,
+              color: 'text-indigo-400 bg-indigo-950/60 border-indigo-800/40',
+            };
+            const Icon = config.icon;
 
             return (
               <div key={idx} className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
-                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${iconColor}`}>
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${config.color}`}>
                   <Icon className="h-3 w-3" />
                 </div>
                 <div className="flex-1 truncate">
                   <span className={tool.error ? 'text-rose-400 font-medium' : 'text-slate-200'}>
-                    {tool.summary}
+                    {tool.summary || tool.name}
                   </span>
                 </div>
               </div>
@@ -127,7 +113,7 @@ export function ChatPane({
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  const [streamingToolCalls, setStreamingToolCalls] = useState<ToolCallItem[]>([]);
+  const [streamingToolCalls, setStreamingToolCalls] = useState<ToolCallRecord[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -490,12 +476,7 @@ export function ChatPane({
         ) : (
           <>
             {visibleMessages.map((msg) => {
-              let parsedTools: ToolCallItem[] = [];
-              if (msg.tool_calls) {
-                try {
-                  parsedTools = JSON.parse(msg.tool_calls);
-                } catch {}
-              }
+              const parsedTools = safeParseToolCalls(msg.tool_calls);
 
               return (
                 <div

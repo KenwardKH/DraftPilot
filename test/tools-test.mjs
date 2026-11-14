@@ -132,6 +132,32 @@ try {
   note = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId);
   if (!note.content.includes('Appended second section.')) throw new Error('Append note failed');
 
+  // 3. Test Non-Existent taskId handling (should fail lookup)
+  const nonExistentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get('task_does_not_exist');
+  if (nonExistentTask) throw new Error('Expected non-existent task lookup to return null');
+
+  // 4. Test ToolCallRecordSchema validation
+  const ToolCallRecordSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    summary: z.string().optional(),
+    args: z.record(z.unknown()).optional(),
+    data: z.unknown().optional(),
+    error: z.string().optional(),
+  });
+  const ToolCallListSchema = z.array(ToolCallRecordSchema);
+
+  const validToolCalls = [
+    { id: 'c1', name: 'create_task', summary: 'Added task', args: { title: 'Test' } },
+    { id: 'c2', name: 'toggle_task', summary: 'Completed task', args: { taskId: 't1', isCompleted: true } },
+  ];
+  const validated = ToolCallListSchema.safeParse(validToolCalls);
+  if (!validated.success) throw new Error('Valid tool calls schema parse failed');
+
+  const invalidToolCalls = [{ id: 123, name: null }];
+  const invalidResult = ToolCallListSchema.safeParse(invalidToolCalls);
+  if (invalidResult.success) throw new Error('Invalid tool calls should be rejected');
+
   console.log('✅ AI Tool schemas and database mutations verification PASSED successfully!');
 } catch (err) {
   console.error('❌ Tools test failed:', err);

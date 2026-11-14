@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SendMessageSchema, Message } from '@/lib/types/chat';
+import { SendMessageSchema, Message, safeParseToolCalls } from '@/lib/types/chat';
 import { getProjectById } from '@/lib/db/projects';
 import { listMessagesByProjectId, saveMessage } from '@/lib/db/messages';
 import { resolveAiConfig } from '@/lib/ai/provider';
@@ -54,12 +54,12 @@ export async function POST(req: NextRequest) {
           };
         }
         if (m.role === 'assistant' && m.tool_calls) {
-          try {
-            const rawTools = JSON.parse(m.tool_calls);
+          const parsedTools = safeParseToolCalls(m.tool_calls);
+          if (parsedTools.length > 0) {
             return {
               role: 'assistant',
               content: m.content || null,
-              tool_calls: rawTools.map((t: { id?: string; name: string; args?: unknown }) => ({
+              tool_calls: parsedTools.map((t) => ({
                 id: t.id || `call_${crypto.randomUUID()}`,
                 type: 'function',
                 function: {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
                 },
               })),
             };
-          } catch {}
+          }
         }
         return {
           role: m.role,
@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
           isSaved = true;
 
           const executedToolCalls: ExecutedToolCall[] = [];
+          const toolResultsToPersist: Array<{ toolCallId: string; content: string }> = [];
 
           // Execute any accumulated tool calls
           if (toolCallsMap.size > 0) {
@@ -152,9 +153,10 @@ export async function POST(req: NextRequest) {
                 parsedArgs = {};
               }
 
+              const callId = call.id || `call_${crypto.randomUUID()}`;
+
               try {
                 const result = await executeWorkspaceTool(projectId, call.name, parsedArgs);
-                const callId = call.id || `call_${crypto.randomUUID()}`;
                 executedToolCalls.push({
                   id: callId,
                   name: call.name,
@@ -163,22 +165,24 @@ export async function POST(req: NextRequest) {
                   data: result.data,
                 });
 
-                // Persist tool result message
-                saveMessage(
-                  projectId,
-                  'tool',
-                  JSON.stringify(result.data || { success: true }),
-                  null,
-                  callId
-                );
+                toolResultsToPersist.push({
+                  toolCallId: callId,
+                  content: JSON.stringify(result.data || { success: true }),
+                });
               } catch (toolErr: unknown) {
                 const errMsg = toolErr instanceof Error ? toolErr.message : 'Tool execution failed';
                 executedToolCalls.push({
-                  id: call.id || `call_${crypto.randomUUID()}`,
+                  id: callId,
                   name: call.name,
                   args: parsedArgs,
                   summary: `Failed to execute ${call.name}: ${errMsg}`,
                   error: errMsg,
+                });
+
+                // Crucial fix: always persist matching tool result even on error to prevent orphaned tool_calls
+                toolResultsToPersist.push({
+                  toolCallId: callId,
+                  content: JSON.stringify({ error: errMsg, success: false }),
                 });
               }
             }
@@ -188,6 +192,7 @@ export async function POST(req: NextRequest) {
             fullAssistantContent = `Executed ${executedToolCalls.length} workspace mutation${executedToolCalls.length > 1 ? 's' : ''}.`;
           }
 
+          // 1. SAVE ASSISTANT MESSAGE FIRST so tool responses succeed it in message sequence
           let savedMsg: Message | null = null;
           if (fullAssistantContent.trim().length > 0 || executedToolCalls.length > 0) {
             savedMsg = saveMessage(
@@ -195,6 +200,17 @@ export async function POST(req: NextRequest) {
               'assistant',
               fullAssistantContent,
               executedToolCalls.length > 0 ? JSON.stringify(executedToolCalls) : null
+            );
+          }
+
+          // 2. SAVE TOOL RESULTS AFTER ASSISTANT MESSAGE to preserve OpenAI ordering: assistant (tool_calls) -> tool
+          for (const toolRes of toolResultsToPersist) {
+            saveMessage(
+              projectId,
+              'tool',
+              toolRes.content,
+              null,
+              toolRes.toolCallId
             );
           }
 

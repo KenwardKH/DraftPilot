@@ -146,6 +146,13 @@ export const WORKSPACE_TOOLS = [
   },
 ];
 
+export type WorkspaceToolName =
+  | 'create_task'
+  | 'toggle_task'
+  | 'update_task'
+  | 'delete_task'
+  | 'edit_note';
+
 export interface ExecutedToolCall {
   id: string;
   name: string;
@@ -180,26 +187,37 @@ export async function executeWorkspaceTool(
     case 'toggle_task': {
       const parsed = ToggleTaskToolSchema.parse(rawArgs);
       const existing = getTaskById(parsed.taskId);
+      if (!existing || existing.project_id !== projectId) {
+        throw new Error(`Task ID "${parsed.taskId}" not found in current project`);
+      }
       const task = updateTask(parsed.taskId, {
         status: parsed.isCompleted ? 'done' : 'todo',
       });
-      const title = existing?.title || task?.title || parsed.taskId;
+      if (!task) {
+        throw new Error(`Failed to toggle task "${parsed.taskId}"`);
+      }
       const action = parsed.isCompleted ? 'Completed' : 'Reopened';
       return {
-        summary: `${action} task: "${title}"`,
+        summary: `${action} task: "${task.title}"`,
         data: task,
       };
     }
 
     case 'update_task': {
       const parsed = UpdateTaskToolSchema.parse(rawArgs);
+      const existing = getTaskById(parsed.taskId);
+      if (!existing || existing.project_id !== projectId) {
+        throw new Error(`Task ID "${parsed.taskId}" not found in current project`);
+      }
       const task = updateTask(parsed.taskId, {
         title: parsed.newTitle,
         priority: parsed.priority,
       });
-      const title = task?.title || parsed.newTitle || parsed.taskId;
+      if (!task) {
+        throw new Error(`Failed to update task "${parsed.taskId}"`);
+      }
       return {
-        summary: `Updated task: "${title}"`,
+        summary: `Updated task: "${task.title}"`,
         data: task,
       };
     }
@@ -207,11 +225,16 @@ export async function executeWorkspaceTool(
     case 'delete_task': {
       const parsed = DeleteTaskToolSchema.parse(rawArgs);
       const existing = getTaskById(parsed.taskId);
+      if (!existing || existing.project_id !== projectId) {
+        throw new Error(`Task ID "${parsed.taskId}" not found in current project`);
+      }
       const deleted = deleteTask(parsed.taskId);
-      const title = existing?.title || parsed.taskId;
+      if (!deleted) {
+        throw new Error(`Failed to delete task "${parsed.taskId}"`);
+      }
       return {
-        summary: `Deleted task: "${title}"`,
-        data: { taskId: parsed.taskId, deleted },
+        summary: `Deleted task: "${existing.title}"`,
+        data: { taskId: parsed.taskId, deleted: true },
       };
     }
 
