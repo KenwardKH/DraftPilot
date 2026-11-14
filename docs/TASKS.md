@@ -42,14 +42,14 @@ flowchart TD
 
 ---
 
-### [ ] TASK-002: Project Management API & Sidebar UI
+### [x] TASK-002: Project Management API & Sidebar UI (Completed)
 - **Description:** Build end-to-end Project creation, listing, switching, and deletion (vertical slice).
 - **Blocked By:** TASK-001
 - **Acceptance Criteria:**
-  - [ ] API routes `GET /api/projects` and `POST /api/projects` with input validation.
-  - [ ] `DELETE /api/projects/[id]` cascades deletion to notes, tasks, and messages.
-  - [ ] Default "General" project seeded on first run if no projects exist.
-  - [ ] Collapsible project sidebar displaying project list, active indicator, "New Project" modal, and delete button.
+  - [x] API routes `GET /api/projects` and `POST /api/projects` with input validation.
+  - [x] `DELETE /api/projects/[id]` cascades deletion to notes, tasks, and messages.
+  - [x] Default "General" project seeded on first run if no projects exist.
+  - [x] Collapsible project sidebar displaying project list, active indicator, "New Project" modal, and delete button.
 - **Verification Steps:**
   - Test creating two projects in the UI, switching between them, and verifying active project state updates.
 
