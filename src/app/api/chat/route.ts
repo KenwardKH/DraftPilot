@@ -208,7 +208,8 @@ export async function POST(req: NextRequest) {
           }
 
           if (!fullAssistantContent.trim() && executedToolCalls.length > 0) {
-            fullAssistantContent = `Executed ${executedToolCalls.length} workspace mutation${executedToolCalls.length > 1 ? 's' : ''}.`;
+            const bulletList = executedToolCalls.map((t) => `- ${t.summary}`).join('\n');
+            fullAssistantContent = `Applied the following changes to the workspace:\n\n${bulletList}`;
           }
 
           // 1. SAVE ASSISTANT MESSAGE FIRST so tool responses succeed it in message sequence

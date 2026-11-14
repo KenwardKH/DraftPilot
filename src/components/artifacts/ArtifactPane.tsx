@@ -286,6 +286,16 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
   const totalCount = tasks.length;
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
+  // Helper to determine if a task was created within the last 5 minutes
+  const isTaskRecent = (createdAt?: string): boolean => {
+    if (!createdAt) return false;
+    const normalized = createdAt.includes('T') ? createdAt : createdAt.replace(' ', 'T') + 'Z';
+    const timestamp = new Date(normalized).getTime();
+    if (isNaN(timestamp)) return false;
+    const ageMs = Date.now() - timestamp;
+    return ageMs > -60000 && ageMs < 5 * 60 * 1000;
+  };
+
   const filteredTasks = tasks.filter((t) => {
     if (taskFilter === 'todo') return t.status !== 'done';
     if (taskFilter === 'done') return t.status === 'done';
@@ -520,6 +530,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
                   const isDone = task.status === 'done';
                   const isEditing = editingTaskId === task.id;
                   const isHighlighted = highlightedTaskIds.has(task.id);
+                  const isNew = isTaskRecent(task.created_at);
 
                   return (
                     <div
@@ -527,6 +538,8 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
                       className={`group flex items-center justify-between rounded-lg border p-2.5 transition-all duration-500 ${
                         isHighlighted
                           ? 'border-indigo-500 bg-indigo-950/60 shadow-[0_0_12px_rgba(99,102,241,0.25)] ring-1 ring-indigo-500'
+                          : isNew && !isDone
+                          ? 'border-emerald-800/60 bg-emerald-950/20 text-slate-200 hover:border-emerald-700/80'
                           : isDone
                           ? 'border-slate-800/40 bg-slate-950/40 text-slate-500'
                           : 'border-slate-800/80 bg-slate-900/60 text-slate-200 hover:border-slate-700'
@@ -589,7 +602,13 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
                       {/* Priority Badge & Action Buttons */}
                       {!isEditing && (
                         <div className="flex items-center gap-2 ml-2 shrink-0">
-                          {isHighlighted && (
+                          {isNew && !isDone && (
+                            <span className="shrink-0 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-300 border border-emerald-500/40 tracking-wider shadow-sm">
+                              NEW
+                            </span>
+                          )}
+
+                          {isHighlighted && !isNew && (
                             <span className="shrink-0 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-300 border border-indigo-500/40 animate-pulse">
                               Updated
                             </span>

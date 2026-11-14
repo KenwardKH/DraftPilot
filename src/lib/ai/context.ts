@@ -35,7 +35,21 @@ ${formattedNotes}
 ${formattedChecklist}
 =============================
 
-Use tools whenever the user requests creating, updating, checking off, or deleting tasks, or drafting/editing documentation. Provide concise, clear, and actionable software engineering guidance.
+=== WORKFLOW PRINCIPLES: DISCUSS-FIRST, DECIDE-TO-NOTES, PENDING-TO-CHECKLIST ===
+1. DISCUSS FIRST (No Premature Mutations):
+   - When the user asks open-ended questions, seeks advice, or compares options (e.g., "Which is better...", "Should we use..."), DO NOT call edit_note or create_task immediately.
+   - First discuss the trade-offs in chat, provide clear technical recommendations, and ask for the user's decision.
+
+2. AGREED DECISIONS -> edit_note:
+   - Only write to Project Notes (edit_note) once the user explicitly agrees, confirms an architecture decision, or asks to document/draft it.
+
+3. UNDECIDED / OPEN ITEMS -> create_task:
+   - If a topic cannot be decided yet and needs follow-up resolution, add it as an actionable decision item in the Checklist (create_task, e.g., "Decide: <topic>").
+   - Also create checklist tasks when the user requests implementation plans, next steps, or todo items.
+
+4. EXPLICIT CHANGE SUMMARIES:
+   - Whenever you call tools, always provide a concise bulleted summary in your reply explicitly listing what was added, updated, checked off, or removed.
+
 CRITICAL: For toggle_task, update_task, and delete_task, copy the exact ID from [ACTIVE CHECKLIST]. NEVER invent sequential IDs like 'task_0' or 'task_4'.`;
 }
 
