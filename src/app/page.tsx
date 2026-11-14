@@ -4,14 +4,30 @@ import React, { useState, useEffect } from 'react';
 import { Project } from '@/lib/types/project';
 import { ProjectSidebar } from '@/components/sidebar/ProjectSidebar';
 import { ArtifactPane } from '@/components/artifacts/ArtifactPane';
-import { Sparkles, Settings, ShieldCheck, Folder } from 'lucide-react';
-
-import { ACTIVE_PROJECT_KEY } from '@/lib/constants';
+import { SettingsModal } from '@/components/modals/SettingsModal';
+import { ACTIVE_PROJECT_KEY, BYOK_SETTINGS_KEY } from '@/lib/constants';
+import { Sparkles, Settings, ShieldCheck, Folder, Server, Key } from 'lucide-react';
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isByokActive, setIsByokActive] = useState(false);
+
+  const checkByokStatus = () => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(BYOK_SETTINGS_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setIsByokActive(Boolean(parsed.isCustom));
+          return;
+        } catch {}
+      }
+    }
+    setIsByokActive(false);
+  };
 
   // Fetch projects on initial mount
   const fetchProjects = async () => {
@@ -38,6 +54,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchProjects();
+    checkByokStatus();
   }, []);
 
   const handleSelectProject = (projectId: string) => {
@@ -131,11 +148,25 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
+          {isByokActive ? (
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-950/60 px-2.5 py-1 text-xs font-medium text-amber-300 border border-amber-800/50">
+              <Key className="h-3.5 w-3.5" />
+              <span>BYOK Active</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-md bg-indigo-950/60 px-2.5 py-1 text-xs font-medium text-indigo-300 border border-indigo-800/50">
+              <Server className="h-3.5 w-3.5" />
+              <span>Host 9Router</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 rounded-md bg-emerald-950/60 px-2.5 py-1 text-xs font-medium text-emerald-400 border border-emerald-800/50">
             <ShieldCheck className="h-3.5 w-3.5" />
             <span>SQLite WAL Active</span>
           </div>
-          <button className="flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-slate-700">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-slate-700"
+          >
             <Settings className="h-3.5 w-3.5" />
             <span>Settings</span>
           </button>
@@ -188,6 +219,13 @@ export default function Home() {
           </section>
         </main>
       </div>
+
+      {/* AI Gateway & BYOK Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSettingsChanged={checkByokStatus}
+      />
     </div>
   );
 }

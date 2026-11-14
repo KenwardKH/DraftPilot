@@ -68,14 +68,14 @@ flowchart TD
 
 ---
 
-### [ ] TASK-004: AI Gateway, BYOK Settings & Host Resolver
+### [x] TASK-004: AI Gateway, BYOK Settings & Host Resolver (Completed)
 - **Description:** Implement the AI configuration resolver that combines server `.env.local` defaults with client `localStorage` BYOK overrides.
 - **Blocked By:** TASK-001
 - **Acceptance Criteria:**
-  - [ ] `src/lib/ai/provider.ts` resolves Base URL, API Key, and Model from request headers first (`x-ai-*`), then server `.env.local`.
-  - [ ] Settings modal in the UI where users can view host defaults or input custom Base URL, Key, and Model.
-  - [ ] BYOK credentials persisted in browser `localStorage`.
-  - [ ] Test button in Settings modal to verify connection to `http://localhost:20128/v1` or configured endpoint.
+  - [x] `src/lib/ai/provider.ts` resolves Base URL, API Key, and Model from request headers first (`x-ai-*`), then server `.env.local`.
+  - [x] Settings modal in the UI where users can view host defaults or input custom Base URL, Key, and Model.
+  - [x] BYOK credentials persisted in browser `localStorage`.
+  - [x] Test button in Settings modal to verify connection to `http://localhost:20128/v1` or configured endpoint.
 - **Verification Steps:**
   - Click "Test Connection" in Settings modal; verify successful ping against local 9Router.
 
