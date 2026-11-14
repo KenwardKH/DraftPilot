@@ -55,14 +55,14 @@ flowchart TD
 
 ---
 
-### [ ] TASK-003: Live Split-Pane Artifacts (Notes & Checklist)
+### [x] TASK-003: Live Split-Pane Artifacts (Notes & Checklist) (Completed)
 - **Description:** Implement the right-side artifact split-pane with tabs for Markdown Notes (live editable & sanitized preview) and interactive Task Checklist.
 - **Blocked By:** TASK-002
 - **Acceptance Criteria:**
-  - [ ] API routes `GET/PUT /api/notes` and `GET/POST/PATCH/DELETE /api/tasks`.
-  - [ ] Tab 1: Markdown Notes editor with live split/preview toggle, sanitized with `rehype-sanitize`. Auto-saves on edit.
-  - [ ] Tab 2: Task Checklist with priority badges (`low`, `medium`, `high`), status checkboxes, inline title editing, and task deletion.
-  - [ ] Switching active projects immediately loads the respective project's notes and tasks.
+  - [x] API routes `GET/PUT /api/notes` and `GET/POST/PATCH/DELETE /api/tasks`.
+  - [x] Tab 1: Markdown Notes editor with live split/preview toggle, sanitized with `rehype-sanitize`. Auto-saves on edit.
+  - [x] Tab 2: Task Checklist with priority badges (`low`, `medium`, `high`), status checkboxes, inline title editing, and task deletion.
+  - [x] Switching active projects immediately loads the respective project's notes and tasks.
 - **Verification Steps:**
   - Create tasks and edit notes manually in the UI; refresh browser and verify persistence from SQLite.
 
