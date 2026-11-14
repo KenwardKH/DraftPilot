@@ -17,14 +17,16 @@ import {
   Check,
   X,
   Square,
+  Settings,
 } from 'lucide-react';
 
 interface ChatPaneProps {
   activeProjectId: string | null;
   projectName?: string;
+  onOpenSettings?: () => void;
 }
 
-export function ChatPane({ activeProjectId, projectName }: ChatPaneProps) {
+export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatPaneProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -174,8 +176,10 @@ export function ChatPane({ activeProjectId, projectName }: ChatPaneProps) {
               accumulatedText += event.content;
               setStreamingContent(accumulatedText);
             } else if (event.type === 'done') {
-              // Finalize message with server-persisted message
-              setMessages((prev) => [...prev, event.message]);
+              // Finalize message with server-persisted message (if text content was generated)
+              if (event.message) {
+                setMessages((prev) => [...prev, event.message]);
+              }
               setStreamingContent('');
               setIsStreaming(false);
               return;
@@ -318,7 +322,22 @@ export function ChatPane({ activeProjectId, projectName }: ChatPaneProps) {
         <div className="flex shrink-0 items-center justify-between border-b border-rose-900/60 bg-rose-950/40 px-4 py-2 text-xs text-rose-300">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
-            <p className="line-clamp-2">{errorMessage}</p>
+            {errorMessage === 'MISSING_AI_CONFIG' ? (
+              <div className="flex items-center gap-2">
+                <span>AI Gateway is not configured. Please set your credentials or BYOK.</span>
+                {onOpenSettings && (
+                  <button
+                    onClick={onOpenSettings}
+                    className="flex items-center gap-1 rounded bg-indigo-600 px-2 py-0.5 text-[11px] font-medium text-white transition hover:bg-indigo-500 shadow-sm"
+                  >
+                    <Settings className="h-3 w-3" />
+                    <span>Open Settings</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="line-clamp-2">{errorMessage}</p>
+            )}
           </div>
           <button
             onClick={() => setErrorMessage(null)}

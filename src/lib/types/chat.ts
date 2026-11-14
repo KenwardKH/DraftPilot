@@ -16,3 +16,12 @@ export const SendMessageSchema = z.object({
   projectId: z.string().min(1, 'Project ID is required'),
   content: z.string().trim().min(1, 'Message content cannot be empty'),
 });
+
+export const ChatHistoryQuerySchema = z.object({
+  projectId: z.string().min(1, 'Project ID is required'),
+});
+
+export const DeleteChatHistorySchema = z.object({
+  projectId: z.string().min(1, 'Project ID is required'),
+});
+

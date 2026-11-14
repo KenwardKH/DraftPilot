@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SendMessageSchema } from '@/lib/types/chat';
+import { SendMessageSchema, Message } from '@/lib/types/chat';
 import { getProjectById } from '@/lib/db/projects';
 import { listMessagesByProjectId, saveMessage } from '@/lib/db/messages';
 import { resolveAiConfig } from '@/lib/ai/provider';
@@ -26,9 +26,9 @@ export async function POST(req: NextRequest) {
 
     // 1. Resolve AI configuration (BYOK headers take priority, then .env.local)
     const config = resolveAiConfig(req);
-    if (!config.baseUrl || !config.model) {
+    if (!config.baseUrl || !config.model || !config.apiKey) {
       return NextResponse.json(
-        { error: 'AI Gateway is not configured. Please set AI_BASE_URL / AI_MODEL or configure BYOK in Settings.' },
+        { error: 'MISSING_AI_CONFIG' },
         { status: 400 }
       );
     }
@@ -103,6 +103,20 @@ export async function POST(req: NextRequest) {
       async pull(controller) {
         let buffer = '';
 
+        const flushAssistantMessage = () => {
+          if (isSaved) return;
+          isSaved = true;
+
+          let savedMsg: Message | null = null;
+          if (fullAssistantContent.trim().length > 0) {
+            savedMsg = saveMessage(projectId, 'assistant', fullAssistantContent);
+          }
+
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: 'done', message: savedMsg })}\n\n`)
+          );
+        };
+
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -118,13 +132,7 @@ export async function POST(req: NextRequest) {
 
               const dataStr = trimmed.replace(/^data:\s*/, '');
               if (dataStr === '[DONE]') {
-                if (!isSaved && fullAssistantContent.trim().length > 0) {
-                  const savedMsg = saveMessage(projectId, 'assistant', fullAssistantContent);
-                  isSaved = true;
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify({ type: 'done', message: savedMsg })}\n\n`)
-                  );
-                }
+                flushAssistantMessage();
                 controller.close();
                 return;
               }
@@ -145,13 +153,7 @@ export async function POST(req: NextRequest) {
           }
 
           // In case stream ends without explicit [DONE] marker
-          if (!isSaved && fullAssistantContent.trim().length > 0) {
-            const savedMsg = saveMessage(projectId, 'assistant', fullAssistantContent);
-            isSaved = true;
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'done', message: savedMsg })}\n\n`)
-            );
-          }
+          flushAssistantMessage();
           controller.close();
         } catch (streamErr: unknown) {
           const streamErrMsg = streamErr instanceof Error ? streamErr.message : 'Streaming failure';

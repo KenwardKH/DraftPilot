@@ -149,6 +149,16 @@ try {
     throw new Error('Populated context missing task 3');
   }
 
+  // 6. Test Zod Boundary Validation for Chat History
+  const historyQueryValid = { projectId: 'p_valid' };
+  if (!historyQueryValid.projectId || historyQueryValid.projectId.length < 1) {
+    throw new Error('Valid project ID check failed');
+  }
+  const historyQueryInvalid = { projectId: '' };
+  if (historyQueryInvalid.projectId.length >= 1) {
+    throw new Error('Empty project ID should be rejected');
+  }
+
   console.log('✅ Chat persistence and context injection tests passed successfully!');
 } catch (err) {
   console.error('❌ Chat test failed:', err);

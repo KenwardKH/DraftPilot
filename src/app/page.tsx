@@ -191,7 +191,11 @@ export default function Home() {
         <main className="flex flex-1 overflow-hidden">
           {/* Left Pane: Chat Interface */}
           <section className="flex w-1/2 flex-col border-r border-slate-800 bg-slate-950 overflow-hidden">
-            <ChatPane activeProjectId={activeProjectId} projectName={activeProject?.name} />
+            <ChatPane
+              activeProjectId={activeProjectId}
+              projectName={activeProject?.name}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+            />
           </section>
 
           {/* Right Pane: Live Artifacts (Notes & Checklist) */}
