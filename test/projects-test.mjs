@@ -87,3 +87,4 @@ try {
   console.error('❌ Project test failed:', error);
   process.exit(1);
 }
+

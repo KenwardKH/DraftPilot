@@ -48,7 +48,7 @@ function seedDefaultProject(db: DatabaseSync): void {
     );
     insertProject.run(
       defaultProjectId,
-      'My First Project',
+      'General',
       'Default workspace project for brainstorming and planning.',
       now,
       now

@@ -17,27 +17,35 @@ export function getProjectById(id: string): Project | null {
 
 export function createProject(data: { name: string; description?: string }): Project {
   const db = getDb();
-  const id = `proj_${crypto.randomUUID().slice(0, 8)}`;
+  const id = `proj_${crypto.randomUUID()}`;
   const now = new Date().toISOString();
   const description = data.description || '';
 
   const insertProject = db.prepare(
     'INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
   );
-  insertProject.run(id, data.name, description, now, now);
 
-  // Initialize a default note for this new project
-  const noteId = `note_${crypto.randomUUID().slice(0, 8)}`;
+  const noteId = `note_${crypto.randomUUID()}`;
   const insertNote = db.prepare(
     'INSERT INTO notes (id, project_id, title, content, updated_at) VALUES (?, ?, ?, ?, ?)'
   );
-  insertNote.run(
-    noteId,
-    id,
-    'Project Overview',
-    `# ${data.name}\n\n${description ? description + '\n\n' : ''}Project notes and architecture decisions will be tracked here.`,
-    now
-  );
+
+  // Atomic SQLite transaction
+  db.exec('BEGIN TRANSACTION');
+  try {
+    insertProject.run(id, data.name, description, now, now);
+    insertNote.run(
+      noteId,
+      id,
+      'Project Overview',
+      `# ${data.name}\n\n${description ? description + '\n\n' : ''}Project notes and architecture decisions will be tracked here.`,
+      now
+    );
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 
   return {
     id,

@@ -5,6 +5,8 @@ import { Project } from '@/lib/types/project';
 import { ProjectSidebar } from '@/components/sidebar/ProjectSidebar';
 import { Sparkles, CheckSquare, FileText, Settings, ShieldCheck, Folder } from 'lucide-react';
 
+import { ACTIVE_PROJECT_KEY } from '@/lib/constants';
+
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export default function Home() {
       setProjects(data.projects || []);
 
       // Restore active project or pick the first one
-      const savedId = typeof window !== 'undefined' ? localStorage.getItem('workspace_active_project') : null;
+      const savedId = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_PROJECT_KEY) : null;
       if (savedId && data.projects?.some((p: Project) => p.id === savedId)) {
         setActiveProjectId(savedId);
       } else if (data.projects && data.projects.length > 0) {
@@ -40,7 +42,7 @@ export default function Home() {
   const handleSelectProject = (projectId: string) => {
     setActiveProjectId(projectId);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('workspace_active_project', projectId);
+      localStorage.setItem(ACTIVE_PROJECT_KEY, projectId);
     }
   };
 
@@ -61,6 +63,22 @@ export default function Home() {
     handleSelectProject(project.id);
   };
 
+  const handleRenameProject = async (projectId: string, newName: string) => {
+    const res = await fetch(`/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to rename project');
+    }
+
+    const { project } = await res.json();
+    setProjects((prev) => prev.map((p) => (p.id === projectId ? project : p)));
+  };
+
   const handleDeleteProject = async (projectId: string) => {
     const res = await fetch(`/api/projects/${projectId}`, {
       method: 'DELETE',
@@ -78,9 +96,9 @@ export default function Home() {
       const nextId = remaining.length > 0 ? remaining[0].id : null;
       setActiveProjectId(nextId);
       if (nextId) {
-        localStorage.setItem('workspace_active_project', nextId);
+        localStorage.setItem(ACTIVE_PROJECT_KEY, nextId);
       } else {
-        localStorage.removeItem('workspace_active_project');
+        localStorage.removeItem(ACTIVE_PROJECT_KEY);
       }
     }
   };
@@ -131,6 +149,7 @@ export default function Home() {
           activeProjectId={activeProjectId}
           onSelectProject={handleSelectProject}
           onCreateProject={handleCreateProject}
+          onRenameProject={handleRenameProject}
           onDeleteProject={handleDeleteProject}
           isLoading={isLoadingProjects}
         />

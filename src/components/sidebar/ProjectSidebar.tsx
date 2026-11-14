@@ -12,6 +12,8 @@ import {
   X,
   AlertTriangle,
   Loader2,
+  Pencil,
+  Check,
 } from 'lucide-react';
 
 interface ProjectSidebarProps {
@@ -19,6 +21,7 @@ interface ProjectSidebarProps {
   activeProjectId: string | null;
   onSelectProject: (projectId: string) => void;
   onCreateProject: (name: string, description?: string) => Promise<void>;
+  onRenameProject: (projectId: string, newName: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
   isLoading: boolean;
 }
@@ -28,6 +31,7 @@ export function ProjectSidebar({
   activeProjectId,
   onSelectProject,
   onCreateProject,
+  onRenameProject,
   onDeleteProject,
   isLoading,
 }: ProjectSidebarProps) {
@@ -39,6 +43,34 @@ export function ProjectSidebar({
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Inline rename state
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  const startEditing = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingProjectId(project.id);
+    setEditingName(project.name);
+  };
+
+  const handleRenameSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    if (e) e.preventDefault();
+    if (!editingProjectId || !editingName.trim()) {
+      setEditingProjectId(null);
+      return;
+    }
+    try {
+      setIsRenaming(true);
+      await onRenameProject(editingProjectId, editingName.trim());
+      setEditingProjectId(null);
+    } catch (err) {
+      console.error('Rename failed:', err);
+    } finally {
+      setIsRenaming(false);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,40 +182,86 @@ export function ProjectSidebar({
                       : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                   } ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2'}`}
                 >
-                  <button
-                    onClick={() => onSelectProject(project.id)}
-                    className="flex flex-1 items-center gap-2.5 overflow-hidden text-left"
-                    title={project.name}
-                  >
-                    {isActive ? (
-                      <FolderOpen className="h-4 w-4 shrink-0 text-indigo-400" />
-                    ) : (
-                      <Folder className="h-4 w-4 shrink-0 text-slate-500 group-hover:text-slate-300" />
-                    )}
-
-                    {!isCollapsed && (
-                      <div className="truncate">
-                        <span className="block truncate text-xs">{project.name}</span>
-                        {project.description && (
-                          <span className="block truncate text-[10px] text-slate-500 font-normal">
-                            {project.description}
-                          </span>
+                  {editingProjectId === project.id ? (
+                    <div className="flex flex-1 items-center gap-1.5 px-1 py-0.5">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRenameSubmit(e);
+                          if (e.key === 'Escape') setEditingProjectId(null);
+                        }}
+                        disabled={isRenaming}
+                        className="flex-1 rounded border border-indigo-500 bg-slate-950 px-2 py-0.5 text-xs text-white focus:outline-none"
+                      />
+                      <button
+                        onClick={handleRenameSubmit}
+                        disabled={isRenaming}
+                        title="Save name"
+                        className="p-1 text-emerald-400 hover:text-emerald-300"
+                      >
+                        {isRenaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => setEditingProjectId(null)}
+                        title="Cancel"
+                        className="p-1 text-slate-500 hover:text-slate-300"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => onSelectProject(project.id)}
+                        className="flex flex-1 items-center gap-2.5 overflow-hidden text-left"
+                        title={project.name}
+                      >
+                        {isActive ? (
+                          <FolderOpen className="h-4 w-4 shrink-0 text-indigo-400" />
+                        ) : (
+                          <Folder className="h-4 w-4 shrink-0 text-slate-500 group-hover:text-slate-300" />
                         )}
-                      </div>
-                    )}
-                  </button>
 
-                  {!isCollapsed && projects.length > 1 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setProjectToDelete(project);
-                      }}
-                      title="Delete Project"
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                        {!isCollapsed && (
+                          <div className="truncate">
+                            <span className="block truncate text-xs">{project.name}</span>
+                            {project.description && (
+                              <span className="block truncate text-[10px] text-slate-500 font-normal">
+                                {project.description}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </button>
+
+                      {!isCollapsed && (
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                          <button
+                            onClick={(e) => startEditing(project, e)}
+                            title="Rename Project"
+                            className="p-1 text-slate-500 hover:text-indigo-400 transition"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+
+                          {projects.length > 1 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setProjectToDelete(project);
+                              }}
+                              title="Delete Project"
+                              className="p-1 text-slate-500 hover:text-rose-400 transition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -302,3 +380,4 @@ export function ProjectSidebar({
     </>
   );
 }
+
