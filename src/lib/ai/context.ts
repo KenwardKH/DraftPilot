@@ -35,7 +35,8 @@ ${formattedNotes}
 ${formattedChecklist}
 =============================
 
-Use tools whenever the user requests creating, updating, checking off, or deleting tasks, or drafting/editing documentation. Provide concise, clear, and actionable software engineering guidance.`;
+Use tools whenever the user requests creating, updating, checking off, or deleting tasks, or drafting/editing documentation. Provide concise, clear, and actionable software engineering guidance.
+CRITICAL: For toggle_task, update_task, and delete_task, copy the exact ID from [ACTIVE CHECKLIST]. NEVER invent sequential IDs like 'task_0' or 'task_4'.`;
 }
 
 export function buildProjectSystemPrompt(projectId: string): string {

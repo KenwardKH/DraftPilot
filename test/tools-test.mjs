@@ -18,20 +18,35 @@ const CreateTaskToolSchema = z.object({
   section: z.string().trim().default('General'),
 });
 
-const ToggleTaskToolSchema = z.object({
-  taskId: z.string().trim().min(1, 'Task ID is required'),
-  isCompleted: z.boolean(),
-});
+const ToggleTaskToolSchema = z
+  .object({
+    taskId: z.string().trim().optional(),
+    taskTitle: z.string().trim().optional(),
+    isCompleted: z.boolean(),
+  })
+  .refine((data) => Boolean(data.taskId || data.taskTitle), {
+    message: 'Either taskId or taskTitle is required',
+  });
 
-const UpdateTaskToolSchema = z.object({
-  taskId: z.string().trim().min(1, 'Task ID is required'),
-  newTitle: z.string().trim().min(1).optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-});
+const UpdateTaskToolSchema = z
+  .object({
+    taskId: z.string().trim().optional(),
+    taskTitle: z.string().trim().optional(),
+    newTitle: z.string().trim().min(1).optional(),
+    priority: z.enum(['low', 'medium', 'high']).optional(),
+  })
+  .refine((data) => Boolean(data.taskId || data.taskTitle), {
+    message: 'Either taskId or taskTitle is required',
+  });
 
-const DeleteTaskToolSchema = z.object({
-  taskId: z.string().trim().min(1, 'Task ID is required'),
-});
+const DeleteTaskToolSchema = z
+  .object({
+    taskId: z.string().trim().optional(),
+    taskTitle: z.string().trim().optional(),
+  })
+  .refine((data) => Boolean(data.taskId || data.taskTitle), {
+    message: 'Either taskId or taskTitle is required',
+  });
 
 const EditNoteToolSchema = z.object({
   content: z.string(),
@@ -55,6 +70,23 @@ try {
 
   const validToggle = ToggleTaskToolSchema.parse({ taskId: 'task_1', isCompleted: true });
   if (!validToggle.isCompleted) throw new Error('ToggleTask schema validation failed');
+
+  const validToggleWithTitle = ToggleTaskToolSchema.parse({ taskTitle: 'Build auth layer', isCompleted: true });
+  if (validToggleWithTitle.taskTitle !== 'Build auth layer') throw new Error('ToggleTask with taskTitle validation failed');
+
+  const validUpdateWithTitle = UpdateTaskToolSchema.parse({ taskTitle: 'Build auth layer', newTitle: 'Updated Auth' });
+  if (validUpdateWithTitle.taskTitle !== 'Build auth layer') throw new Error('UpdateTask with taskTitle validation failed');
+
+  const validDeleteWithTitle = DeleteTaskToolSchema.parse({ taskTitle: 'Build auth layer' });
+  if (validDeleteWithTitle.taskTitle !== 'Build auth layer') throw new Error('DeleteTask with taskTitle validation failed');
+
+  let invalidToggleFailed = false;
+  try {
+    ToggleTaskToolSchema.parse({ isCompleted: true });
+  } catch {
+    invalidToggleFailed = true;
+  }
+  if (!invalidToggleFailed) throw new Error('ToggleTask should fail if both taskId and taskTitle are missing');
 
   const validEdit = EditNoteToolSchema.parse({ content: '# Notes', mode: 'append' });
   if (validEdit.mode !== 'append') throw new Error('EditNote schema validation failed');
@@ -132,9 +164,33 @@ try {
   note = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId);
   if (!note.content.includes('Appended second section.')) throw new Error('Append note failed');
 
-  // 3. Test Non-Existent taskId handling (should fail lookup)
+  // 3. Test Non-Existent taskId handling & Title-Fallback Lookup
   const nonExistentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get('task_does_not_exist');
   if (nonExistentTask) throw new Error('Expected non-existent task lookup to return null');
+
+  // Insert task for title fallback testing
+  const fallbackTaskId = 'task_fallback_1';
+  db.prepare('INSERT INTO tasks (id, project_id, title, status, priority, section, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    fallbackTaskId,
+    pId,
+    'Configure OAuth Provider',
+    'todo',
+    'high',
+    'Auth',
+    1
+  );
+
+  // Exact case-insensitive match
+  const exactByTitle = db.prepare('SELECT * FROM tasks WHERE project_id = ? AND LOWER(title) = LOWER(?) LIMIT 1').get(pId, 'configure oauth provider');
+  if (!exactByTitle || exactByTitle.id !== fallbackTaskId) {
+    throw new Error('Case-insensitive title lookup failed');
+  }
+
+  // Partial substring match
+  const partialByTitle = db.prepare('SELECT * FROM tasks WHERE project_id = ? AND LOWER(title) LIKE LOWER(?) LIMIT 1').get(pId, '%OAuth%');
+  if (!partialByTitle || partialByTitle.id !== fallbackTaskId) {
+    throw new Error('Substring title lookup failed');
+  }
 
   // 4. Test ToolCallRecordSchema validation
   const ToolCallRecordSchema = z.object({

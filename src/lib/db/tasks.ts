@@ -96,3 +96,23 @@ export function deleteTask(taskId: string): boolean {
   return Number(result.changes) > 0;
 }
 
+export function findTaskByTitle(projectId: string, title: string): Task | null {
+  const db = getDb();
+  const trimmed = title.trim();
+  if (!trimmed) return null;
+
+  // 1. Exact case-insensitive match in project
+  const exactStmt = db.prepare(
+    'SELECT id, project_id, title, status, priority, section, sort_order, created_at, updated_at FROM tasks WHERE project_id = ? AND LOWER(title) = LOWER(?) LIMIT 1'
+  );
+  const exact = exactStmt.get(projectId, trimmed);
+  if (exact) return exact as unknown as Task;
+
+  // 2. Substring match in project
+  const likeStmt = db.prepare(
+    'SELECT id, project_id, title, status, priority, section, sort_order, created_at, updated_at FROM tasks WHERE project_id = ? AND LOWER(title) LIKE LOWER(?) LIMIT 1'
+  );
+  const partial = likeStmt.get(projectId, `%${trimmed}%`);
+  return (partial as unknown as Task) || null;
+}
+

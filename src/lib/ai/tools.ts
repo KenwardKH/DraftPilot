@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { createTask, updateTask, deleteTask, getTaskById } from '../db/tasks';
+import {
+  createTask,
+  updateTask,
+  deleteTask,
+  getTaskById,
+  listTasksByProjectId,
+  findTaskByTitle,
+} from '../db/tasks';
 import { getNoteByProjectId, updateNote } from '../db/notes';
 import { Task, Note } from '../types/artifact';
 
@@ -10,20 +17,35 @@ export const CreateTaskToolSchema = z.object({
   section: z.string().trim().default('General'),
 });
 
-export const ToggleTaskToolSchema = z.object({
-  taskId: z.string().trim().min(1, 'Task ID is required'),
-  isCompleted: z.boolean(),
-});
+export const ToggleTaskToolSchema = z
+  .object({
+    taskId: z.string().trim().optional(),
+    taskTitle: z.string().trim().optional(),
+    isCompleted: z.boolean(),
+  })
+  .refine((data) => Boolean(data.taskId || data.taskTitle), {
+    message: 'Either taskId or taskTitle is required',
+  });
 
-export const UpdateTaskToolSchema = z.object({
-  taskId: z.string().trim().min(1, 'Task ID is required'),
-  newTitle: z.string().trim().min(1).optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-});
+export const UpdateTaskToolSchema = z
+  .object({
+    taskId: z.string().trim().optional(),
+    taskTitle: z.string().trim().optional(),
+    newTitle: z.string().trim().min(1).optional(),
+    priority: z.enum(['low', 'medium', 'high']).optional(),
+  })
+  .refine((data) => Boolean(data.taskId || data.taskTitle), {
+    message: 'Either taskId or taskTitle is required',
+  });
 
-export const DeleteTaskToolSchema = z.object({
-  taskId: z.string().trim().min(1, 'Task ID is required'),
-});
+export const DeleteTaskToolSchema = z
+  .object({
+    taskId: z.string().trim().optional(),
+    taskTitle: z.string().trim().optional(),
+  })
+  .refine((data) => Boolean(data.taskId || data.taskTitle), {
+    message: 'Either taskId or taskTitle is required',
+  });
 
 export const EditNoteToolSchema = z.object({
   content: z.string(),
@@ -68,14 +90,18 @@ export const WORKSPACE_TOOLS = [
         properties: {
           taskId: {
             type: 'string',
-            description: 'The exact ID of the task to toggle (e.g. "task_...")',
+            description: 'The exact ID of the task from [ACTIVE CHECKLIST] (e.g. "task_...").',
+          },
+          taskTitle: {
+            type: 'string',
+            description: 'Fallback: the exact title of the task if ID is unknown.',
           },
           isCompleted: {
             type: 'boolean',
             description: 'true to mark task as done, false for todo',
           },
         },
-        required: ['taskId', 'isCompleted'],
+        required: ['isCompleted'],
       },
     },
   },
@@ -89,7 +115,11 @@ export const WORKSPACE_TOOLS = [
         properties: {
           taskId: {
             type: 'string',
-            description: 'The exact ID of the task to update',
+            description: 'The exact ID of the task from [ACTIVE CHECKLIST]',
+          },
+          taskTitle: {
+            type: 'string',
+            description: 'Fallback: the title of the task if ID is unknown',
           },
           newTitle: {
             type: 'string',
@@ -101,7 +131,6 @@ export const WORKSPACE_TOOLS = [
             description: 'New priority level',
           },
         },
-        required: ['taskId'],
       },
     },
   },
@@ -115,10 +144,13 @@ export const WORKSPACE_TOOLS = [
         properties: {
           taskId: {
             type: 'string',
-            description: 'The exact ID of the task to delete',
+            description: 'The exact ID of the task from [ACTIVE CHECKLIST] to delete',
+          },
+          taskTitle: {
+            type: 'string',
+            description: 'Fallback: the title of the task to delete if ID is unknown',
           },
         },
-        required: ['taskId'],
       },
     },
   },
@@ -164,6 +196,54 @@ export interface ExecutedToolCall {
 }
 
 /**
+ * Resolves a task by exact ID, fallback title, or sequential index hallucination.
+ */
+export function resolveTask(
+  projectId: string,
+  taskId?: string,
+  taskTitle?: string
+): Task | null {
+  // 1. Direct ID lookup
+  if (taskId) {
+    const direct = getTaskById(taskId);
+    if (direct && direct.project_id === projectId) {
+      return direct;
+    }
+  }
+
+  // 2. Exact or substring title lookup if taskTitle was provided
+  if (taskTitle) {
+    const byTitle = findTaskByTitle(projectId, taskTitle);
+    if (byTitle) return byTitle;
+  }
+
+  // 3. Fallback: Check if taskId was actually passed as the task's title
+  if (taskId) {
+    const byTaskIdAsTitle = findTaskByTitle(projectId, taskId);
+    if (byTaskIdAsTitle) return byTaskIdAsTitle;
+  }
+
+  // 4. Fallback: Check if taskId matches sequential index hallucination like "task_0", "task_1", "task_4"
+  if (taskId) {
+    const indexMatch = taskId.match(/^task_?(\d+)$/i);
+    if (indexMatch) {
+      const idx = parseInt(indexMatch[1], 10);
+      const allTasks = listTasksByProjectId(projectId);
+      // Try 0-based index first (e.g. task_0 = 1st task, task_3 = 4th task)
+      if (idx >= 0 && idx < allTasks.length) {
+        return allTasks[idx];
+      }
+      // Try 1-based index (e.g. task_1 = 1st task, task_4 = 4th task)
+      if (idx >= 1 && idx <= allTasks.length) {
+        return allTasks[idx - 1];
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Executes a single tool mutation against SQLite.
  */
 export async function executeWorkspaceTool(
@@ -187,15 +267,15 @@ export async function executeWorkspaceTool(
 
     case 'toggle_task': {
       const parsed = ToggleTaskToolSchema.parse(rawArgs);
-      const existing = getTaskById(parsed.taskId);
-      if (!existing || existing.project_id !== projectId) {
-        throw new Error(`Task ID "${parsed.taskId}" not found in current project`);
+      const taskToToggle = resolveTask(projectId, parsed.taskId, parsed.taskTitle);
+      if (!taskToToggle) {
+        throw new Error(`Task "${parsed.taskId || parsed.taskTitle}" not found in current project`);
       }
-      const task = updateTask(parsed.taskId, {
+      const task = updateTask(taskToToggle.id, {
         status: parsed.isCompleted ? 'done' : 'todo',
       });
       if (!task) {
-        throw new Error(`Failed to toggle task "${parsed.taskId}"`);
+        throw new Error(`Failed to toggle task "${taskToToggle.id}"`);
       }
       const action = parsed.isCompleted ? 'Completed' : 'Reopened';
       return {
@@ -206,16 +286,16 @@ export async function executeWorkspaceTool(
 
     case 'update_task': {
       const parsed = UpdateTaskToolSchema.parse(rawArgs);
-      const existing = getTaskById(parsed.taskId);
-      if (!existing || existing.project_id !== projectId) {
-        throw new Error(`Task ID "${parsed.taskId}" not found in current project`);
+      const taskToUpdate = resolveTask(projectId, parsed.taskId, parsed.taskTitle);
+      if (!taskToUpdate) {
+        throw new Error(`Task "${parsed.taskId || parsed.taskTitle}" not found in current project`);
       }
-      const task = updateTask(parsed.taskId, {
+      const task = updateTask(taskToUpdate.id, {
         title: parsed.newTitle,
         priority: parsed.priority,
       });
       if (!task) {
-        throw new Error(`Failed to update task "${parsed.taskId}"`);
+        throw new Error(`Failed to update task "${taskToUpdate.id}"`);
       }
       return {
         summary: `Updated task: "${task.title}"`,
@@ -225,17 +305,17 @@ export async function executeWorkspaceTool(
 
     case 'delete_task': {
       const parsed = DeleteTaskToolSchema.parse(rawArgs);
-      const existing = getTaskById(parsed.taskId);
-      if (!existing || existing.project_id !== projectId) {
-        throw new Error(`Task ID "${parsed.taskId}" not found in current project`);
+      const taskToDelete = resolveTask(projectId, parsed.taskId, parsed.taskTitle);
+      if (!taskToDelete) {
+        throw new Error(`Task "${parsed.taskId || parsed.taskTitle}" not found in current project`);
       }
-      const deleted = deleteTask(parsed.taskId);
+      const deleted = deleteTask(taskToDelete.id);
       if (!deleted) {
-        throw new Error(`Failed to delete task "${parsed.taskId}"`);
+        throw new Error(`Failed to delete task "${taskToDelete.id}"`);
       }
       return {
-        summary: `Deleted task: "${existing.title}"`,
-        data: { taskId: parsed.taskId, deleted: true },
+        summary: `Deleted task: "${taskToDelete.title}"`,
+        data: { taskId: taskToDelete.id, deleted: true },
       };
     }
 

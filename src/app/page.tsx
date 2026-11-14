@@ -144,7 +144,7 @@ export default function Home() {
               )}
             </div>
             <p className="text-xs text-slate-400">
-              {activeProject?.description || 'Local SQLite &bull; Hybrid 9Router / BYOK &bull; WAL Enabled'}
+              {activeProject?.description || 'Local SQLite • Hybrid 9Router / BYOK • WAL Enabled'}
             </p>
           </div>
         </div>
