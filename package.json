@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node test/db-test.mjs && node test/projects-test.mjs && node test/artifacts-test.mjs && node --experimental-strip-types test/ai-provider-test.mjs && node test/chat-test.mjs && node test/tools-test.mjs && node test/snapshots-test.mjs"
+    "test": "node test/db-test.mjs && node test/projects-test.mjs && node test/artifacts-test.mjs && node --experimental-strip-types test/ai-provider-test.mjs && node test/chat-test.mjs && node test/tools-test.mjs && node test/snapshots-test.mjs && node test/auth-export-test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

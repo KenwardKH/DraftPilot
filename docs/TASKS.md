@@ -119,17 +119,17 @@ flowchart TD
 
 ---
 
-### [ ] TASK-008: Passcode Gate (`WORKSPACE_PASSCODE`) & Context Exporter
+### [x] TASK-008: Passcode Gate (`WORKSPACE_PASSCODE`) & Context Exporter (Completed)
 - **Description:** Implement the optional tunnel security gate and one-click Markdown context/spec exporter.
 - **Blocked By:** TASK-005
 - **Acceptance Criteria:**
-  - [ ] If `WORKSPACE_PASSCODE` is set in `.env.local`, unauthenticated visitors are prompted with an unlock modal before API routes allow requests.
-  - [ ] If `WORKSPACE_PASSCODE` is empty/unset, the gate is disabled and access is immediate.
-  - [ ] "Export Context" button generates a consolidated, formatted Markdown brief (Project description + Notes + Checklist).
-  - [ ] User can "Copy to Clipboard" or "Download as .md".
+  - [x] If `WORKSPACE_PASSCODE` is set in `.env.local`, unauthenticated visitors are prompted with an unlock modal before API routes allow requests.
+  - [x] If `WORKSPACE_PASSCODE` is empty/unset, the gate is disabled and access is immediate.
+  - [x] "Export Context" button generates a consolidated, formatted Markdown brief (Project description + Notes + Checklist).
+  - [x] User can "Copy to Clipboard" or "Download as .md".
 - **Verification Steps:**
-  - Set `WORKSPACE_PASSCODE="secret123"`; open an Incognito window; verify passcode prompt blocks access until entered correctly.
-  - Test export button and verify clean Markdown output.
+  - [x] Set `WORKSPACE_PASSCODE="secret123"`; open an Incognito window; verify passcode prompt blocks access until entered correctly.
+  - [x] Test export button and verify clean Markdown output.
 
 ---
 

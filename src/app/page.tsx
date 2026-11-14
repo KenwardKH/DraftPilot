@@ -6,14 +6,18 @@ import { ProjectSidebar } from '@/components/sidebar/ProjectSidebar';
 import { ArtifactPane } from '@/components/artifacts/ArtifactPane';
 import { ChatPane } from '@/components/chat/ChatPane';
 import { SettingsModal } from '@/components/modals/SettingsModal';
+import { PasscodeModal } from '@/components/modals/PasscodeModal';
+import { ExportModal } from '@/components/modals/ExportModal';
 import { ACTIVE_PROJECT_KEY, BYOK_SETTINGS_KEY } from '@/lib/constants';
-import { Sparkles, Settings, ShieldCheck, Folder, Server, Key } from 'lucide-react';
+import { Sparkles, Settings, ShieldCheck, Folder, Server, Key, Download } from 'lucide-react';
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isPasscodeRequired, setIsPasscodeRequired] = useState(false);
   const [isByokActive, setIsByokActive] = useState(false);
   const [artifactsRevision, setArtifactsRevision] = useState(0);
 
@@ -31,11 +35,32 @@ export default function Home() {
     setIsByokActive(false);
   };
 
+  // Check workspace passcode status
+  const checkAuthStatus = async () => {
+    try {
+      const res = await fetch('/api/auth/status');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.required && !data.authenticated) {
+          setIsPasscodeRequired(true);
+          return false;
+        }
+      }
+    } catch (err) {
+      console.error('Error checking auth status:', err);
+    }
+    return true;
+  };
+
   // Fetch projects on initial mount
   const fetchProjects = async () => {
     try {
       setIsLoadingProjects(true);
       const res = await fetch('/api/projects');
+      if (res.status === 401) {
+        setIsPasscodeRequired(true);
+        return;
+      }
       if (!res.ok) throw new Error('Failed to load projects');
       const data = await res.json();
       setProjects(data.projects || []);
@@ -54,9 +79,20 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
+  const handleUnlockSuccess = () => {
+    setIsPasscodeRequired(false);
     fetchProjects();
-    checkByokStatus();
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      const authorized = await checkAuthStatus();
+      if (authorized) {
+        fetchProjects();
+      }
+      checkByokStatus();
+    };
+    init();
   }, []);
 
   const handleSelectProject = (projectId: string) => {
@@ -166,6 +202,15 @@ export default function Home() {
             <span>SQLite WAL Active</span>
           </div>
           <button
+            onClick={() => setIsExportOpen(true)}
+            disabled={!activeProject}
+            className="flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-slate-700 disabled:opacity-50"
+            title="Export consolidated Markdown brief"
+          >
+            <Download className="h-3.5 w-3.5 text-indigo-400" />
+            <span>Export Brief</span>
+          </button>
+          <button
             onClick={() => setIsSettingsOpen(true)}
             className="flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-slate-700"
           >
@@ -216,6 +261,19 @@ export default function Home() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSettingsChanged={checkByokStatus}
+      />
+
+      {/* Workspace Passcode Gate Modal */}
+      <PasscodeModal
+        isOpen={isPasscodeRequired}
+        onSuccess={handleUnlockSuccess}
+      />
+
+      {/* Project Context & Spec Exporter Modal */}
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        activeProject={activeProject}
       />
     </div>
   );
