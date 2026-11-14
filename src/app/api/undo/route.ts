@@ -4,7 +4,15 @@ import { restoreUndoSnapshot } from '@/lib/db/snapshots';
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json();
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON request body' },
+        { status: 400 }
+      );
+    }
     const parseResult = UndoRequestSchema.safeParse(rawBody);
 
     if (!parseResult.success) {

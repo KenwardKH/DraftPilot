@@ -133,14 +133,14 @@ flowchart TD
 
 ---
 
-### [ ] TASK-009: End-to-End System Verification & 9Router Demo
+### [x] TASK-009: End-to-End System Verification & 9Router Demo (Completed)
 - **Description:** Conduct a complete dogfooding run in Antigravity IDE and OpenCode terminal, verifying full integration.
 - **Blocked By:** TASK-007, TASK-008
 - **Acceptance Criteria:**
-  - [ ] Full automated test suite passes (`npm test`).
-  - [ ] TypeScript type-checking passes with zero errors (`npx tsc --noEmit`).
-  - [ ] Run app locally connected to `9router` with Gemini, test project creation, live tool calling, undo, and spec export.
-  - [ ] OpenCode CLI can query the workspace and inspect artifacts cleanly.
+  - [x] Full automated test suite passes (`npm test`).
+  - [x] TypeScript type-checking passes with zero errors (`npx tsc --noEmit`).
+  - [x] Run app locally connected to `9router` with Gemini, test project creation, live tool calling, undo, and spec export.
+  - [x] OpenCode CLI can query the workspace and inspect artifacts cleanly.
 - **Verification Steps:**
-  - Complete a live end-to-end feature planning session entirely within the workspace app.
+  - [x] Complete a live end-to-end feature planning session entirely within the workspace app.
 
