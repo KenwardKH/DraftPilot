@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Project } from '@/lib/types/project';
 import { ProjectSidebar } from '@/components/sidebar/ProjectSidebar';
 import { ArtifactPane } from '@/components/artifacts/ArtifactPane';
+import { ChatPane } from '@/components/chat/ChatPane';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ACTIVE_PROJECT_KEY, BYOK_SETTINGS_KEY } from '@/lib/constants';
 import { Sparkles, Settings, ShieldCheck, Folder, Server, Key } from 'lucide-react';
@@ -189,28 +190,8 @@ export default function Home() {
         {/* Split-Pane Area */}
         <main className="flex flex-1 overflow-hidden">
           {/* Left Pane: Chat Interface */}
-          <section className="flex w-1/2 flex-col border-r border-slate-800 bg-slate-950">
-            <div className="flex h-10 items-center justify-between border-b border-slate-800/80 bg-slate-900/40 px-4">
-              <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                AI Assistant {activeProject ? `(${activeProject.name})` : ''}
-              </span>
-            </div>
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-slate-500">
-              <div>
-                <Sparkles className="mx-auto mb-2 h-8 w-8 text-indigo-500/40" />
-                <p className="text-sm font-medium text-slate-400">
-                  {activeProject ? `Ready to plan for "${activeProject.name}"` : 'Select or Create a Project'}
-                </p>
-                <p className="text-xs text-slate-600 mt-1">
-                  Prompt the AI to brainstorm, break down tasks, or draft documentation.
-                </p>
-              </div>
-            </div>
-            <div className="border-t border-slate-800 p-3 bg-slate-900/30">
-              <div className="h-10 rounded-lg border border-slate-800 bg-slate-900 px-3 flex items-center text-xs text-slate-500">
-                Type your instructions here...
-              </div>
-            </div>
+          <section className="flex w-1/2 flex-col border-r border-slate-800 bg-slate-950 overflow-hidden">
+            <ChatPane activeProjectId={activeProjectId} projectName={activeProject?.name} />
           </section>
 
           {/* Right Pane: Live Artifacts (Notes & Checklist) */}

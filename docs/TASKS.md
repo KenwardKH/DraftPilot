@@ -81,14 +81,14 @@ flowchart TD
 
 ---
 
-### [ ] TASK-005: Chat Interface & SSE Token Streaming
+### [x] TASK-005: Chat Interface & SSE Token Streaming (Completed)
 - **Description:** Build the left-pane conversational chat interface with real-time token streaming and automated project context injection.
 - **Blocked By:** TASK-003, TASK-004
 - **Acceptance Criteria:**
-  - [ ] Chat UI with message history list, markdown rendering, auto-scrolling, and responsive message input bar.
-  - [ ] `/api/chat` route streams response tokens via Server-Sent Events (SSE).
-  - [ ] Active project notes and checklist items are automatically injected into the system prompt context.
-  - [ ] Chat messages persist in the `messages` table per project.
+  - [x] Chat UI with message history list, markdown rendering, auto-scrolling, and responsive message input bar.
+  - [x] `/api/chat` route streams response tokens via Server-Sent Events (SSE).
+  - [x] Active project notes and checklist items are automatically injected into the system prompt context.
+  - [x] Chat messages persist in the `messages` table per project.
 - **Verification Steps:**
   - Send a prompt in chat; verify smooth streaming output and confirm the AI accurately references the active project notes/tasks.
 
