@@ -94,13 +94,13 @@ flowchart TD
 
 ---
 
-### [ ] TASK-006: Granular AI Tool-Calling Engine
+### [x] TASK-006: Granular AI Tool-Calling Engine (Completed)
 - **Description:** Implement the native tool-calling pipeline allowing the AI to mutate tasks and notes directly.
 - **Blocked By:** TASK-005
 - **Acceptance Criteria:**
-  - [ ] Tools registered in `/api/chat`: `create_task`, `toggle_task`, `update_task`, `delete_task`, `edit_note`.
-  - [ ] When the AI outputs a tool call, the server executes the SQL mutation, stores the tool execution in message history, and updates the artifact.
-  - [ ] In the chat UI, tool calls render as clean, expandable status cards (e.g., *"Added task: Setup database schema"*).
+  - [x] Tools registered in `/api/chat`: `create_task`, `toggle_task`, `update_task`, `delete_task`, `edit_note`.
+  - [x] When the AI outputs a tool call, the server executes the SQL mutation, stores the tool execution in message history, and updates the artifact.
+  - [x] In the chat UI, tool calls render as clean, expandable status cards (e.g., *"Added task: Setup database schema"*).
 - **Verification Steps:**
   - Prompt: *"Add 3 tasks for building our authentication layer and check off the first one"*. Verify tasks appear live in the checklist.
 

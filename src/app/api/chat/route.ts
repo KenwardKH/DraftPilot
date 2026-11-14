@@ -4,6 +4,8 @@ import { getProjectById } from '@/lib/db/projects';
 import { listMessagesByProjectId, saveMessage } from '@/lib/db/messages';
 import { resolveAiConfig } from '@/lib/ai/provider';
 import { buildProjectSystemPrompt } from '@/lib/ai/context';
+import { WORKSPACE_TOOLS, executeWorkspaceTool, ExecutedToolCall } from '@/lib/ai/tools';
+import crypto from 'node:crypto';
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,10 +45,36 @@ export async function POST(req: NextRequest) {
     // Convert to OpenAI chat completion format
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...pastMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      ...pastMessages.map((m) => {
+        if (m.role === 'tool') {
+          return {
+            role: 'tool',
+            content: m.content,
+            tool_call_id: m.tool_call_id || undefined,
+          };
+        }
+        if (m.role === 'assistant' && m.tool_calls) {
+          try {
+            const rawTools = JSON.parse(m.tool_calls);
+            return {
+              role: 'assistant',
+              content: m.content || null,
+              tool_calls: rawTools.map((t: { id?: string; name: string; args?: unknown }) => ({
+                id: t.id || `call_${crypto.randomUUID()}`,
+                type: 'function',
+                function: {
+                  name: t.name,
+                  arguments: JSON.stringify(t.args || {}),
+                },
+              })),
+            };
+          } catch {}
+        }
+        return {
+          role: m.role,
+          content: m.content,
+        };
+      }),
     ];
 
     // 4. Request streaming completion from AI Gateway
@@ -66,6 +94,7 @@ export async function POST(req: NextRequest) {
           model: config.model,
           messages,
           stream: true,
+          tools: WORKSPACE_TOOLS,
         }),
       });
     } catch (fetchErr: unknown) {
@@ -91,7 +120,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Upstream provider returned an empty response body' }, { status: 502 });
     }
 
-    // 5. Stream response tokens via Server-Sent Events (SSE)
+    // 5. Stream response tokens & tool calls via Server-Sent Events (SSE)
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     const reader = upstreamResponse.body.getReader();
@@ -99,17 +128,83 @@ export async function POST(req: NextRequest) {
     let fullAssistantContent = '';
     let isSaved = false;
 
+    // Accumulate tool calls during stream
+    const toolCallsMap = new Map<number, { id: string; name: string; arguments: string }>();
+
     const stream = new ReadableStream({
       async pull(controller) {
         let buffer = '';
 
-        const flushAssistantMessage = () => {
+        const flushAssistantMessage = async () => {
           if (isSaved) return;
           isSaved = true;
 
+          const executedToolCalls: ExecutedToolCall[] = [];
+
+          // Execute any accumulated tool calls
+          if (toolCallsMap.size > 0) {
+            for (const [, call] of toolCallsMap) {
+              if (!call.name) continue;
+              let parsedArgs: Record<string, unknown> = {};
+              try {
+                parsedArgs = JSON.parse(call.arguments || '{}');
+              } catch {
+                parsedArgs = {};
+              }
+
+              try {
+                const result = await executeWorkspaceTool(projectId, call.name, parsedArgs);
+                const callId = call.id || `call_${crypto.randomUUID()}`;
+                executedToolCalls.push({
+                  id: callId,
+                  name: call.name,
+                  args: parsedArgs,
+                  summary: result.summary,
+                  data: result.data,
+                });
+
+                // Persist tool result message
+                saveMessage(
+                  projectId,
+                  'tool',
+                  JSON.stringify(result.data || { success: true }),
+                  null,
+                  callId
+                );
+              } catch (toolErr: unknown) {
+                const errMsg = toolErr instanceof Error ? toolErr.message : 'Tool execution failed';
+                executedToolCalls.push({
+                  id: call.id || `call_${crypto.randomUUID()}`,
+                  name: call.name,
+                  args: parsedArgs,
+                  summary: `Failed to execute ${call.name}: ${errMsg}`,
+                  error: errMsg,
+                });
+              }
+            }
+          }
+
+          if (!fullAssistantContent.trim() && executedToolCalls.length > 0) {
+            fullAssistantContent = `Executed ${executedToolCalls.length} workspace mutation${executedToolCalls.length > 1 ? 's' : ''}.`;
+          }
+
           let savedMsg: Message | null = null;
-          if (fullAssistantContent.trim().length > 0) {
-            savedMsg = saveMessage(projectId, 'assistant', fullAssistantContent);
+          if (fullAssistantContent.trim().length > 0 || executedToolCalls.length > 0) {
+            savedMsg = saveMessage(
+              projectId,
+              'assistant',
+              fullAssistantContent,
+              executedToolCalls.length > 0 ? JSON.stringify(executedToolCalls) : null
+            );
+          }
+
+          if (executedToolCalls.length > 0) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: 'tool_calls_executed', toolCalls: executedToolCalls })}\n\n`)
+            );
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: 'artifacts_updated' })}\n\n`)
+            );
           }
 
           controller.enqueue(
@@ -132,19 +227,33 @@ export async function POST(req: NextRequest) {
 
               const dataStr = trimmed.replace(/^data:\s*/, '');
               if (dataStr === '[DONE]') {
-                flushAssistantMessage();
+                await flushAssistantMessage();
                 controller.close();
                 return;
               }
 
               try {
                 const parsed = JSON.parse(dataStr);
-                const deltaContent = parsed.choices?.[0]?.delta?.content;
-                if (deltaContent) {
-                  fullAssistantContent += deltaContent;
+                const delta = parsed.choices?.[0]?.delta;
+
+                // Handle text delta
+                if (delta?.content) {
+                  fullAssistantContent += delta.content;
                   controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify({ type: 'token', content: deltaContent })}\n\n`)
+                    encoder.encode(`data: ${JSON.stringify({ type: 'token', content: delta.content })}\n\n`)
                   );
+                }
+
+                // Handle tool_calls delta
+                if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
+                  for (const tc of delta.tool_calls) {
+                    const idx = tc.index ?? 0;
+                    const current = toolCallsMap.get(idx) || { id: '', name: '', arguments: '' };
+                    if (tc.id) current.id = tc.id;
+                    if (tc.function?.name) current.name += tc.function.name;
+                    if (tc.function?.arguments) current.arguments += tc.function.arguments;
+                    toolCallsMap.set(idx, current);
+                  }
                 }
               } catch {
                 // Ignore incomplete or malformed intermediate lines
@@ -153,7 +262,7 @@ export async function POST(req: NextRequest) {
           }
 
           // In case stream ends without explicit [DONE] marker
-          flushAssistantMessage();
+          await flushAssistantMessage();
           controller.close();
         } catch (streamErr: unknown) {
           const streamErrMsg = streamErr instanceof Error ? streamErr.message : 'Streaming failure';

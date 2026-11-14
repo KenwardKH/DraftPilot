@@ -27,12 +27,13 @@ import {
 interface ArtifactPaneProps {
   activeProjectId: string | null;
   projectName?: string;
+  refreshTrigger?: number;
 }
 
 type ViewMode = 'edit' | 'split' | 'preview';
 type TaskFilter = 'all' | 'todo' | 'done';
 
-export function ArtifactPane({ activeProjectId, projectName }: ArtifactPaneProps) {
+export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: ArtifactPaneProps) {
   const [activeTab, setActiveTab] = useState<'notes' | 'checklist'>('notes');
 
   // Notes state
@@ -90,7 +91,7 @@ export function ArtifactPane({ activeProjectId, projectName }: ArtifactPaneProps
       setNoteContent('');
       setTasks([]);
     }
-  }, [activeProjectId, loadArtifacts]);
+  }, [activeProjectId, loadArtifacts, refreshTrigger]);
 
   // Note auto-save handler (debounced 600ms)
   const handleContentChange = (val: string) => {

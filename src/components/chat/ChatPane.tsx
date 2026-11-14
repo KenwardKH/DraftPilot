@@ -18,20 +18,116 @@ import {
   X,
   Square,
   Settings,
+  Wrench,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  CheckSquare,
+  Pencil,
+  FileText,
 } from 'lucide-react';
+
+export interface ToolCallItem {
+  id: string;
+  name: string;
+  summary: string;
+  args?: Record<string, unknown>;
+  error?: string;
+}
 
 interface ChatPaneProps {
   activeProjectId: string | null;
   projectName?: string;
   onOpenSettings?: () => void;
+  onArtifactsMutated?: () => void;
 }
 
-export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatPaneProps) {
+function ToolCallsDisplay({ toolCalls }: { toolCalls: ToolCallItem[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!toolCalls || toolCalls.length === 0) return null;
+
+  return (
+    <div className="mb-2.5 rounded-lg border border-indigo-900/40 bg-slate-950/70 overflow-hidden text-xs">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className="flex w-full items-center justify-between px-3 py-2 bg-indigo-950/30 hover:bg-indigo-950/50 transition text-left"
+      >
+        <div className="flex items-center gap-2 text-indigo-300 font-medium">
+          <Wrench className="h-3.5 w-3.5 text-indigo-400" />
+          <span>
+            Executed {toolCalls.length} workspace mutation{toolCalls.length > 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 text-slate-400">
+          <span className="text-[11px]">{isExpanded ? 'Hide' : 'Details'}</span>
+          {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </div>
+      </button>
+
+      {/* Summary preview when collapsed */}
+      {!isExpanded && (
+        <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-indigo-900/20 truncate">
+          {toolCalls.map((t) => t.summary).join(' • ')}
+        </div>
+      )}
+
+      {/* Full detail list when expanded */}
+      {isExpanded && (
+        <div className="divide-y divide-slate-800/60 p-1 border-t border-indigo-900/30">
+          {toolCalls.map((tool, idx) => {
+            let Icon = Wrench;
+            let iconColor = 'text-indigo-400 bg-indigo-950/60 border-indigo-800/40';
+
+            if (tool.name === 'create_task') {
+              Icon = Plus;
+              iconColor = 'text-emerald-400 bg-emerald-950/60 border-emerald-800/40';
+            } else if (tool.name === 'toggle_task') {
+              Icon = CheckSquare;
+              iconColor = 'text-indigo-400 bg-indigo-950/60 border-indigo-800/40';
+            } else if (tool.name === 'update_task') {
+              Icon = Pencil;
+              iconColor = 'text-sky-400 bg-sky-950/60 border-sky-800/40';
+            } else if (tool.name === 'delete_task') {
+              Icon = Trash2;
+              iconColor = 'text-rose-400 bg-rose-950/60 border-rose-800/40';
+            } else if (tool.name === 'edit_note') {
+              Icon = FileText;
+              iconColor = 'text-amber-400 bg-amber-950/60 border-amber-800/40';
+            }
+
+            return (
+              <div key={idx} className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${iconColor}`}>
+                  <Icon className="h-3 w-3" />
+                </div>
+                <div className="flex-1 truncate">
+                  <span className={tool.error ? 'text-rose-400 font-medium' : 'text-slate-200'}>
+                    {tool.summary}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ChatPane({
+  activeProjectId,
+  projectName,
+  onOpenSettings,
+  onArtifactsMutated,
+}: ChatPaneProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingToolCalls, setStreamingToolCalls] = useState<ToolCallItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -82,7 +178,7 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
     if (isAutoScrollEnabled.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, streamingContent]);
+  }, [messages, streamingContent, streamingToolCalls]);
 
   // Construct BYOK request headers from localStorage
   const getByokHeaders = (): Record<string, string> => {
@@ -123,6 +219,7 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
     setMessages((prev) => [...prev, tempUserMessage]);
     setIsStreaming(true);
     setStreamingContent('');
+    setStreamingToolCalls([]);
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -175,12 +272,17 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
             if (event.type === 'token') {
               accumulatedText += event.content;
               setStreamingContent(accumulatedText);
+            } else if (event.type === 'tool_calls_executed') {
+              setStreamingToolCalls(event.toolCalls || []);
+            } else if (event.type === 'artifacts_updated') {
+              onArtifactsMutated?.();
             } else if (event.type === 'done') {
-              // Finalize message with server-persisted message (if text content was generated)
+              // Finalize message with server-persisted message (if text/tool content exists)
               if (event.message) {
                 setMessages((prev) => [...prev, event.message]);
               }
               setStreamingContent('');
+              setStreamingToolCalls([]);
               setIsStreaming(false);
               return;
             } else if (event.type === 'error') {
@@ -216,6 +318,7 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
+      setStreamingToolCalls([]);
       abortControllerRef.current = null;
     }
   };
@@ -268,6 +371,9 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
     );
   }
 
+  // Filter out internal 'tool' role records since tool calls are rendered directly inside the assistant card
+  const visibleMessages = messages.filter((m) => m.role !== 'tool');
+
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-slate-950">
       {/* Chat Header Bar */}
@@ -278,7 +384,7 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
             {projectName ? `${projectName} Chat` : 'AI Project Chat'}
           </span>
           <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 font-mono">
-            SSE Stream
+            SSE + Tools
           </span>
         </div>
 
@@ -302,7 +408,7 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
               </button>
             </div>
           ) : (
-            messages.length > 0 && (
+            visibleMessages.length > 0 && (
               <button
                 onClick={() => setShowClearConfirm(true)}
                 disabled={isStreaming}
@@ -319,7 +425,7 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
 
       {/* Error Banner */}
       {errorMessage && (
-        <div className="flex shrink-0 items-center justify-between border-b border-rose-900/60 bg-rose-950/40 px-4 py-2 text-xs text-rose-300">
+        <div className="flex shrink-0 items-center justify-between border-b border-rose-900/60 bg-rose-950/40 px-4 py-2.5 text-xs text-rose-300">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
             {errorMessage === 'MISSING_AI_CONFIG' ? (
@@ -359,14 +465,14 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
             <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
             <span className="ml-2 text-xs">Loading message history...</span>
           </div>
-        ) : messages.length === 0 && !isStreaming ? (
+        ) : visibleMessages.length === 0 && !isStreaming ? (
           <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-950/60 text-indigo-400 border border-indigo-800/40 mb-3">
               <Sparkles className="h-5 w-5" />
             </div>
             <h4 className="text-sm font-medium text-slate-300">How can I help with {projectName}?</h4>
             <p className="mt-1 text-xs text-slate-500 max-w-sm">
-              I have direct visibility into your project notes and task checklist. Prompt me to plan, break down work, or draft requirements.
+              I can directly create, update, or check off tasks in your checklist, and draft or edit documentation in your notes.
             </p>
 
             <div className="mt-5 flex flex-col gap-2 w-full max-w-sm">
@@ -383,42 +489,56 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
           </div>
         ) : (
           <>
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.role !== 'user' && (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                )}
+            {visibleMessages.map((msg) => {
+              let parsedTools: ToolCallItem[] = [];
+              if (msg.tool_calls) {
+                try {
+                  parsedTools = JSON.parse(msg.tool_calls);
+                } catch {}
+              }
 
+              return (
                 <div
-                  className={`max-w-[85%] rounded-xl px-4 py-3 text-xs leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-slate-900 border border-slate-800/80 text-slate-200'
-                  }`}
+                  key={msg.id}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {msg.role === 'user' ? (
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
-                  ) : (
-                    <div className="prose prose-invert prose-xs max-w-none space-y-2 [&>p]:leading-relaxed [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>pre]:bg-slate-950 [&>pre]:border [&>pre]:border-slate-800 [&>pre]:p-2.5 [&>pre]:rounded-md [&>code]:bg-slate-800 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:font-mono">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-                        {msg.content}
-                      </ReactMarkdown>
+                  {msg.role !== 'user' && (
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+                      <Bot className="h-4 w-4" />
+                    </div>
+                  )}
+
+                  <div
+                    className={`max-w-[85%] rounded-xl px-4 py-3 text-xs leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-900 border border-slate-800/80 text-slate-200'
+                    }`}
+                  >
+                    {msg.role === 'user' ? (
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    ) : (
+                      <div>
+                        {parsedTools.length > 0 && <ToolCallsDisplay toolCalls={parsedTools} />}
+                        {msg.content && (
+                          <div className="prose prose-invert prose-xs max-w-none space-y-2 [&>p]:leading-relaxed [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>pre]:bg-slate-950 [&>pre]:border [&>pre]:border-slate-800 [&>pre]:p-2.5 [&>pre]:rounded-md [&>code]:bg-slate-800 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:font-mono">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {msg.role === 'user' && (
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-400 border border-slate-700/60">
+                      <User className="h-4 w-4" />
                     </div>
                   )}
                 </div>
-
-                {msg.role === 'user' && (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-400 border border-slate-700/60">
-                    <User className="h-4 w-4" />
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
 
             {/* Live Streaming Assistant Bubble */}
             {isStreaming && (
@@ -427,6 +547,10 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
                   <Bot className="h-4 w-4 animate-pulse" />
                 </div>
                 <div className="max-w-[85%] rounded-xl bg-slate-900 border border-slate-800/80 px-4 py-3 text-xs leading-relaxed text-slate-200">
+                  {streamingToolCalls.length > 0 && (
+                    <ToolCallsDisplay toolCalls={streamingToolCalls} />
+                  )}
+
                   {streamingContent ? (
                     <div className="prose prose-invert prose-xs max-w-none space-y-2 [&>p]:leading-relaxed [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>pre]:bg-slate-950 [&>pre]:border [&>pre]:border-slate-800 [&>pre]:p-2.5 [&>pre]:rounded-md [&>code]:bg-slate-800 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:font-mono">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
@@ -435,10 +559,12 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
                       <span className="inline-block h-3.5 w-1.5 animate-pulse bg-indigo-400 align-middle ml-1" />
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
-                      <span>Thinking...</span>
-                    </div>
+                    streamingToolCalls.length === 0 && (
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+                        <span>Thinking...</span>
+                      </div>
+                    )
                   )}
                 </div>
               </div>
@@ -456,7 +582,7 @@ export function ChatPane({ activeProjectId, projectName, onOpenSettings }: ChatP
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isStreaming}
-            placeholder={`Message AI co-pilot about ${projectName || 'project'}... (Enter to send, Shift+Enter for newline)`}
+            placeholder={`Message AI co-pilot about ${projectName || 'project'}... (e.g. "Add 3 tasks for auth and update notes")`}
             rows={2}
             className="w-full resize-none bg-transparent px-3 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none"
           />

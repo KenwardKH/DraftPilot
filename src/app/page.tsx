@@ -15,6 +15,7 @@ export default function Home() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isByokActive, setIsByokActive] = useState(false);
+  const [artifactsRevision, setArtifactsRevision] = useState(0);
 
   const checkByokStatus = () => {
     if (typeof window !== 'undefined') {
@@ -195,12 +196,17 @@ export default function Home() {
               activeProjectId={activeProjectId}
               projectName={activeProject?.name}
               onOpenSettings={() => setIsSettingsOpen(true)}
+              onArtifactsMutated={() => setArtifactsRevision((prev) => prev + 1)}
             />
           </section>
 
           {/* Right Pane: Live Artifacts (Notes & Checklist) */}
           <section className="flex w-1/2 flex-col bg-slate-950 overflow-hidden">
-            <ArtifactPane activeProjectId={activeProjectId} projectName={activeProject?.name} />
+            <ArtifactPane
+              activeProjectId={activeProjectId}
+              projectName={activeProject?.name}
+              refreshTrigger={artifactsRevision}
+            />
           </section>
         </main>
       </div>
