@@ -15,10 +15,11 @@ export function saveMessage(
   role: MessageRole,
   content: string,
   toolCalls?: string | null,
-  toolCallId?: string | null
+  toolCallId?: string | null,
+  customId?: string | null
 ): Message {
   const db = getDb();
-  const id = `msg_${crypto.randomUUID()}`;
+  const id = customId || `msg_${crypto.randomUUID()}`;
   const now = new Date().toISOString();
 
   const stmt = db.prepare(

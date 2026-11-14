@@ -85,10 +85,10 @@ try {
       ).run(t.id, pId, t.title, t.status, t.priority, t.section, t.sort_order, t.created_at, t.updated_at);
     }
 
-    db.prepare('UPDATE notes SET content = ?, title = ? WHERE id = ?').run(
+    db.prepare('UPDATE notes SET content = ?, title = ? WHERE project_id = ?').run(
       restoredNote.content,
       restoredNote.title,
-      restoredNote.id
+      pId
     );
 
     db.prepare('DELETE FROM undo_snapshots WHERE id = ?').run(snapshotId);

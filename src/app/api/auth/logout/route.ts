@@ -6,3 +6,4 @@ export async function POST() {
   response.cookies.delete(WORKSPACE_SESSION_COOKIE);
   return response;
 }
+

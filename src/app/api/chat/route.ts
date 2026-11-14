@@ -130,7 +130,14 @@ export async function POST(req: NextRequest) {
     let isSaved = false;
 
     // Accumulate tool calls during stream
-    const toolCallsMap = new Map<number, { id: string; name: string; arguments: string }>();
+    interface ToolCallAccumulator {
+      id: string;
+      name: string;
+      arguments: string;
+    }
+
+    const toolCallsList: ToolCallAccumulator[] = [];
+    const indexToEntryMap = new Map<number, ToolCallAccumulator>();
 
     const stream = new ReadableStream({
       async pull(controller) {
@@ -142,19 +149,19 @@ export async function POST(req: NextRequest) {
 
           const executedToolCalls: ExecutedToolCall[] = [];
           const toolResultsToPersist: Array<{ toolCallId: string; content: string }> = [];
+          const assistantMessageId = `msg_${crypto.randomUUID()}`;
 
           // Execute any accumulated tool calls
-          if (toolCallsMap.size > 0) {
+          if (toolCallsList.length > 0) {
             let snapshotId: string | undefined;
-            const tempMessageId = `msg_${crypto.randomUUID()}`;
             try {
               // Pre-mutation snapshot of tasks and notes saved into undo_snapshots before executing tool batch
-              snapshotId = createUndoSnapshot(projectId, tempMessageId, 'all');
+              snapshotId = createUndoSnapshot(projectId, assistantMessageId, 'all');
             } catch (snapErr) {
               console.error('Failed to capture undo snapshot:', snapErr);
             }
 
-            for (const [, call] of toolCallsMap) {
+            for (const call of toolCallsList) {
               if (!call.name) continue;
               let parsedArgs: Record<string, unknown> = {};
               try {
@@ -205,13 +212,16 @@ export async function POST(req: NextRequest) {
           }
 
           // 1. SAVE ASSISTANT MESSAGE FIRST so tool responses succeed it in message sequence
+          // Using assistantMessageId guarantees 1:1 match with undo_snapshots.message_id
           let savedMsg: Message | null = null;
           if (fullAssistantContent.trim().length > 0 || executedToolCalls.length > 0) {
             savedMsg = saveMessage(
               projectId,
               'assistant',
               fullAssistantContent,
-              executedToolCalls.length > 0 ? JSON.stringify(executedToolCalls) : null
+              executedToolCalls.length > 0 ? JSON.stringify(executedToolCalls) : null,
+              null,
+              assistantMessageId
             );
           }
 
@@ -275,12 +285,64 @@ export async function POST(req: NextRequest) {
                 // Handle tool_calls delta
                 if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
                   for (const tc of delta.tool_calls) {
-                    const idx = tc.index ?? 0;
-                    const current = toolCallsMap.get(idx) || { id: '', name: '', arguments: '' };
-                    if (tc.id) current.id = tc.id;
-                    if (tc.function?.name) current.name += tc.function.name;
-                    if (tc.function?.arguments) current.arguments += tc.function.arguments;
-                    toolCallsMap.set(idx, current);
+                    const rawIdx = tc.index;
+                    const hasExplicitIndex = typeof rawIdx === 'number';
+
+                    if (hasExplicitIndex) {
+                      const existing = indexToEntryMap.get(rawIdx);
+                      // If there is an existing entry at this index, but tc introduces a NEW non-empty id that differs:
+                      // Start a brand new tool call entry instead of overwriting the previous one!
+                      if (existing && tc.id && existing.id && tc.id !== existing.id) {
+                        const nextEntry: ToolCallAccumulator = {
+                          id: tc.id,
+                          name: tc.function?.name || '',
+                          arguments: tc.function?.arguments || '',
+                        };
+                        toolCallsList.push(nextEntry);
+                        indexToEntryMap.set(rawIdx, nextEntry);
+                      } else if (existing) {
+                        if (tc.id) existing.id = tc.id;
+                        if (tc.function?.name) existing.name += tc.function.name;
+                        if (tc.function?.arguments) existing.arguments += tc.function.arguments;
+                      } else {
+                        const nextEntry: ToolCallAccumulator = {
+                          id: tc.id || '',
+                          name: tc.function?.name || '',
+                          arguments: tc.function?.arguments || '',
+                        };
+                        toolCallsList.push(nextEntry);
+                        indexToEntryMap.set(rawIdx, nextEntry);
+                      }
+                    } else {
+                      // Chunk has no index field
+                      if (tc.id) {
+                        const last = toolCallsList[toolCallsList.length - 1];
+                        if (last && last.id === tc.id) {
+                          if (tc.function?.name) last.name += tc.function.name;
+                          if (tc.function?.arguments) last.arguments += tc.function.arguments;
+                        } else {
+                          const nextEntry: ToolCallAccumulator = {
+                            id: tc.id,
+                            name: tc.function?.name || '',
+                            arguments: tc.function?.arguments || '',
+                          };
+                          toolCallsList.push(nextEntry);
+                        }
+                      } else {
+                        const last = toolCallsList[toolCallsList.length - 1];
+                        if (last) {
+                          if (tc.function?.name) last.name += tc.function.name;
+                          if (tc.function?.arguments) last.arguments += tc.function.arguments;
+                        } else {
+                          const nextEntry: ToolCallAccumulator = {
+                            id: '',
+                            name: tc.function?.name || '',
+                            arguments: tc.function?.arguments || '',
+                          };
+                          toolCallsList.push(nextEntry);
+                        }
+                      }
+                    }
                   }
                 }
               } catch {

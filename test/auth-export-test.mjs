@@ -25,6 +25,19 @@ function verifyToken(token, expectedPasscode) {
   return crypto.timingSafeEqual(tokenBuf, expectedBuf);
 }
 
+function timingSafeEqualString(a, b) {
+  if (!a || !b) return false;
+  const aBuf = new TextEncoder().encode(a);
+  const bBuf = new TextEncoder().encode(b);
+  if (aBuf.byteLength !== bBuf.byteLength) return false;
+
+  let mismatch = 0;
+  for (let i = 0; i < aBuf.byteLength; i++) {
+    mismatch |= aBuf[i] ^ bBuf[i];
+  }
+  return mismatch === 0;
+}
+
 // 2. Test Context Brief Exporter Logic
 function generateContextBrief(project, note, tasks) {
   const totalCount = tasks.length;
@@ -81,6 +94,17 @@ try {
   const validToken = sha256Hex(secret);
   if (verifyToken('invalid_token', secret)) throw new Error('Invalid token should be rejected');
   if (!verifyToken(validToken, secret)) throw new Error('Valid token should be accepted');
+
+  // Test constant-time string comparison helper
+  if (!timingSafeEqualString('secret_abc_123', 'secret_abc_123')) {
+    throw new Error('timingSafeEqualString failed for identical strings');
+  }
+  if (timingSafeEqualString('secret_abc_123', 'secret_abc_124')) {
+    throw new Error('timingSafeEqualString failed to reject differing character');
+  }
+  if (timingSafeEqualString('secret_abc_123', 'secret_abc_12')) {
+    throw new Error('timingSafeEqualString failed to reject differing length');
+  }
 
   // Test 3: Zod Passcode Schema
   const PasscodeRequestSchema = z.object({
@@ -141,3 +165,4 @@ try {
   console.error('❌ Auth & Exporter test failed:', err);
   process.exit(1);
 }
+

@@ -1,13 +1,21 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
+import {
+  WORKSPACE_SESSION_COOKIE,
+  WORKSPACE_PASSCODE_HEADER,
+  WORKSPACE_TOKEN_HEADER,
+  timingSafeEqualString,
+} from './constants';
+
+export {
+  WORKSPACE_SESSION_COOKIE,
+  WORKSPACE_PASSCODE_HEADER,
+  WORKSPACE_TOKEN_HEADER,
+};
 
 export const PasscodeRequestSchema = z.object({
   passcode: z.string().min(1, 'Passcode cannot be empty'),
 });
-
-export const WORKSPACE_SESSION_COOKIE = 'workspace_session';
-export const WORKSPACE_PASSCODE_HEADER = 'x-workspace-passcode';
-export const WORKSPACE_TOKEN_HEADER = 'x-workspace-token';
 
 export function isPasscodeConfigured(): boolean {
   const code = process.env.WORKSPACE_PASSCODE;
@@ -68,3 +76,4 @@ export function isRequestAuthorized(request: Request): boolean {
 
   return false;
 }
+

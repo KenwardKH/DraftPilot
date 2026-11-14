@@ -119,3 +119,4 @@ export function PasscodeModal({ isOpen, onSuccess }: PasscodeModalProps) {
     </div>
   );
 }
+

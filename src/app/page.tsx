@@ -208,7 +208,7 @@ export default function Home() {
             title="Export consolidated Markdown brief"
           >
             <Download className="h-3.5 w-3.5 text-indigo-400" />
-            <span>Export Brief</span>
+            <span>Export Context</span>
           </button>
           <button
             onClick={() => setIsSettingsOpen(true)}

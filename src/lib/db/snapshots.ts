@@ -75,11 +75,11 @@ export function restoreUndoSnapshot(snapshotId: string): { success: boolean; pro
     if (note) {
       const existingNote = db.prepare('SELECT id FROM notes WHERE project_id = ?').get(snapshot.project_id);
       if (existingNote) {
-        db.prepare('UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?').run(
+        db.prepare('UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE project_id = ?').run(
           note.title,
           note.content,
           note.updated_at || new Date().toISOString(),
-          note.id
+          snapshot.project_id
         );
       } else {
         db.prepare(

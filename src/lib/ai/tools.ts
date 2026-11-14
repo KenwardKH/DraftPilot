@@ -229,13 +229,13 @@ export function resolveTask(
     if (indexMatch) {
       const idx = parseInt(indexMatch[1], 10);
       const allTasks = listTasksByProjectId(projectId);
-      // Try 0-based index first (e.g. task_0 = 1st task, task_3 = 4th task)
-      if (idx >= 0 && idx < allTasks.length) {
-        return allTasks[idx];
-      }
-      // Try 1-based index (e.g. task_1 = 1st task, task_4 = 4th task)
+      // Prioritize 1-based index (e.g. task_1 = 1st task, task_4 = 4th task)
       if (idx >= 1 && idx <= allTasks.length) {
         return allTasks[idx - 1];
+      }
+      // Fallback to 0-based index (e.g. task_0 = 1st task)
+      if (idx >= 0 && idx < allTasks.length) {
+        return allTasks[idx];
       }
     }
   }

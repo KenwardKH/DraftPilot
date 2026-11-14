@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-
-export const WORKSPACE_SESSION_COOKIE = 'workspace_session';
-export const WORKSPACE_PASSCODE_HEADER = 'x-workspace-passcode';
-export const WORKSPACE_TOKEN_HEADER = 'x-workspace-token';
-
-async function sha256Hex(str: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(str);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
+import {
+  WORKSPACE_SESSION_COOKIE,
+  WORKSPACE_PASSCODE_HEADER,
+  WORKSPACE_TOKEN_HEADER,
+  sha256Hex,
+  timingSafeEqualString,
+} from '@/lib/auth/constants';
 
 export async function middleware(req: NextRequest) {
   const passcode = process.env.WORKSPACE_PASSCODE?.trim();
@@ -30,22 +26,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 1. Check direct passcode header
+  // 1. Check direct passcode header with constant-time comparison
   const headerPasscode = req.headers.get(WORKSPACE_PASSCODE_HEADER)?.trim();
-  if (headerPasscode && headerPasscode === passcode) {
+  if (headerPasscode && timingSafeEqualString(headerPasscode, passcode)) {
     return NextResponse.next();
   }
 
-  // 2. Check session token header or cookie
+  // 2. Check session token header or cookie with constant-time comparison
   const expectedToken = await sha256Hex(passcode);
 
   const headerToken = req.headers.get(WORKSPACE_TOKEN_HEADER)?.trim();
-  if (headerToken && headerToken === expectedToken) {
+  if (headerToken && timingSafeEqualString(headerToken, expectedToken)) {
     return NextResponse.next();
   }
 
   const cookieToken = req.cookies.get(WORKSPACE_SESSION_COOKIE)?.value?.trim();
-  if (cookieToken && cookieToken === expectedToken) {
+  if (cookieToken && timingSafeEqualString(cookieToken, expectedToken)) {
     return NextResponse.next();
   }
 
@@ -59,3 +55,4 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ['/api/:path*'],
 };
+
