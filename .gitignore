@@ -8,6 +8,7 @@ node_modules/
 out/
 build/
 dist/
+*.tsbuildinfo
 
 # Local Environment Secrets & Configuration
 .env.local
@@ -31,5 +32,7 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-
-*.tsbuildinfo
+# Internal AI Agent Skills & Configs
+.agents/
+AGENTS.md
+skills-lock.json
