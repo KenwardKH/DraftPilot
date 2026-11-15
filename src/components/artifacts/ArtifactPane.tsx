@@ -28,21 +28,53 @@ interface ArtifactPaneProps {
   activeProjectId: string | null;
   projectName?: string;
   refreshTrigger?: number;
+  activeTab?: 'notes' | 'checklist';
+  onTabChange?: (tab: 'notes' | 'checklist') => void;
+  onTaskCountsChange?: (counts: { total: number; done: number }) => void;
 }
 
 type ViewMode = 'edit' | 'split' | 'preview';
 type TaskFilter = 'all' | 'todo' | 'done';
 
-export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: ArtifactPaneProps) {
-  const [activeTab, setActiveTab] = useState<'notes' | 'checklist'>('notes');
+export function ArtifactPane({
+  activeProjectId,
+  projectName,
+  refreshTrigger,
+  activeTab: controlledTab,
+  onTabChange,
+  onTaskCountsChange,
+}: ArtifactPaneProps) {
+  const [internalTab, setInternalTab] = useState<'notes' | 'checklist'>('notes');
+  const activeTab = controlledTab ?? internalTab;
+
+  const setActiveTab = (tab: 'notes' | 'checklist') => {
+    setInternalTab(tab);
+    onTabChange?.(tab);
+  };
 
   // Notes state
   const [note, setNote] = useState<Note | null>(null);
   const [noteContent, setNoteContent] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return 'preview';
+    }
+    return 'split';
+  });
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-switch to single-pane view if screen shrinks below md breakpoint
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setViewMode((current) => (current === 'split' ? 'preview' : current));
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Visual diff highlighting state
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
@@ -80,6 +112,29 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
       setIsLoading(true);
       const isSameProject = currentProjectIdRef.current === projectId;
       currentProjectIdRef.current = projectId;
+
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        typeof window !== 'undefined' &&
+        window.location.search.includes('preview_mobile=1')
+      ) {
+        const mockContent = '# Mobile Architecture\n\nThis is a mobile preview of the DraftPilot workspace.\n\n- Full-width single-pane layout\n- Sticky navigation tab bar\n- Touch-friendly inputs and buttons\n- Zero horizontal scroll';
+        setNote({
+          id: 'note_demo',
+          project_id: projectId,
+          title: 'Project Overview',
+          content: mockContent,
+          updated_at: new Date().toISOString(),
+        });
+        setNoteContent(mockContent);
+        setTasks([
+          { id: 't1', project_id: projectId, title: 'Build mobile drawer', status: 'done', priority: 'high', section: 'Mobile', sort_order: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { id: 't2', project_id: projectId, title: 'Implement mobile tab switcher', status: 'done', priority: 'high', section: 'Mobile', sort_order: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { id: 't3', project_id: projectId, title: 'Optimize small viewport headers', status: 'todo', priority: 'medium', section: 'Mobile', sort_order: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+        ]);
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        return;
+      }
 
       const [noteRes, tasksRes] = await Promise.all([
         fetch(`/api/notes?projectId=${projectId}`),
@@ -302,6 +357,12 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
     return true;
   });
 
+  // Notify parent of task count changes
+  useEffect(() => {
+    const done = tasks.filter((t) => t.status === 'done').length;
+    onTaskCountsChange?.({ total: tasks.length, done });
+  }, [tasks, onTaskCountsChange]);
+
   if (!activeProjectId) {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-center text-slate-500">
@@ -316,9 +377,10 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-slate-950">
-      {/* Top Tab Bar */}
-      <div className="flex h-10 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-2">
-        <div className="flex items-center gap-1">
+      {/* Top Tab Bar: On desktop, show both Notes & Checklist tabs. On mobile, the parent sticky tab bar handles tab switching */}
+      <div className="flex h-10 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-2 sm:px-3">
+        {/* Desktop Tab Switcher */}
+        <div className="hidden md:flex items-center gap-1">
           <button
             onClick={() => setActiveTab('notes')}
             className={`relative flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition ${
@@ -355,19 +417,39 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
           </button>
         </div>
 
+        {/* Mobile Section Title (Shown on < md) */}
+        <div className="flex md:hidden items-center gap-2">
+          {activeTab === 'notes' ? (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+              <FileText className="h-3.5 w-3.5 text-indigo-400" />
+              <span>Project Notes</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+              <CheckSquare className="h-3.5 w-3.5 text-indigo-400" />
+              <span>Checklist</span>
+              {totalCount > 0 && (
+                <span className="rounded-full bg-slate-800 px-1.5 py-0.2 text-[10px] text-slate-300 font-normal border border-slate-700">
+                  {doneCount}/{totalCount}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Notes View Switcher (when Notes tab is active) */}
         {activeTab === 'notes' && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 text-[11px] text-slate-500 mr-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-slate-500 mr-1 sm:mr-2">
               {isSavingNote ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
-                  <span>Saving...</span>
+                  <span className="hidden sm:inline">Saving...</span>
                 </>
               ) : lastSavedTime ? (
                 <>
                   <Check className="h-3 w-3 text-emerald-400" />
-                  <span>Saved {lastSavedTime}</span>
+                  <span className="truncate max-w-[80px] sm:max-w-none">{lastSavedTime}</span>
                 </>
               ) : null}
             </div>
@@ -385,7 +467,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
               <button
                 onClick={() => setViewMode('split')}
                 title="Split View"
-                className={`p-1 rounded text-xs transition ${
+                className={`hidden md:inline-flex p-1 rounded text-xs transition ${
                   viewMode === 'split' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -416,11 +498,11 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
           /* TAB 1: MARKDOWN NOTES EDITOR & SANITIZED PREVIEW                 */
           /* =============================================================== */
           <div className="flex flex-1 overflow-hidden">
-            {/* Editor Pane */}
+            {/* Editor Pane (takes full width on mobile or when edit mode, or 50% split on desktop) */}
             {(viewMode === 'edit' || viewMode === 'split') && (
               <div
                 className={`flex flex-col border-slate-800 transition-all duration-700 ${
-                  viewMode === 'split' ? 'w-1/2 border-r' : 'w-full'
+                  viewMode === 'split' ? 'hidden md:flex md:w-1/2 border-r' : 'w-full'
                 } ${
                   isNoteHighlighted ? 'ring-2 ring-indigo-500/80 bg-indigo-950/20' : ''
                 }`}
@@ -429,16 +511,16 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
                   value={noteContent}
                   onChange={(e) => handleContentChange(e.target.value)}
                   placeholder="Type your project notes, requirements, and decisions in Markdown..."
-                  className="flex-1 resize-none bg-slate-950 p-4 font-mono text-xs leading-relaxed text-slate-200 placeholder-slate-600 focus:outline-none"
+                  className="flex-1 resize-none bg-slate-950 p-3.5 sm:p-4 font-mono text-xs leading-relaxed text-slate-200 placeholder-slate-600 focus:outline-none"
                 />
               </div>
             )}
 
-            {/* Sanitized Preview Pane */}
+            {/* Sanitized Preview Pane (takes full width on mobile or when preview mode, or 50% split on desktop) */}
             {(viewMode === 'preview' || viewMode === 'split') && (
               <div
-                className={`flex flex-col overflow-y-auto bg-slate-950/70 p-5 transition-all duration-700 ${
-                  viewMode === 'split' ? 'w-1/2' : 'w-full'
+                className={`flex flex-col overflow-y-auto bg-slate-950/70 p-3.5 sm:p-5 transition-all duration-700 ${
+                  viewMode === 'split' ? 'w-full md:w-1/2' : 'w-full'
                 } ${
                   isNoteHighlighted ? 'ring-2 ring-indigo-500/80 bg-indigo-950/20' : ''
                 }`}
@@ -510,7 +592,7 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
               <button
                 type="submit"
                 disabled={isAddingTask || !newTaskTitle.trim()}
-                className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition disabled:opacity-50"
+                className="min-h-[36px] flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition disabled:opacity-50"
               >
                 {isAddingTask ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 <span>Add</span>
@@ -626,23 +708,23 @@ export function ArtifactPane({ activeProjectId, projectName, refreshTrigger }: A
                             {task.priority}
                           </span>
 
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                          <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
                             <button
                               onClick={() => {
                                 setEditingTaskId(task.id);
                                 setEditingTaskTitle(task.title);
                               }}
                               title="Edit Title"
-                              className="p-1 text-slate-500 hover:text-indigo-400 transition"
+                              className="p-1.5 sm:p-1 text-slate-400 sm:text-slate-500 hover:text-indigo-400 transition"
                             >
-                              <Pencil className="h-3 w-3" />
+                              <Pencil className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                             </button>
                             <button
                               onClick={() => handleDeleteTask(task.id)}
                               title="Delete Task"
-                              className="p-1 text-slate-500 hover:text-rose-400 transition"
+                              className="p-1.5 sm:p-1 text-slate-400 sm:text-slate-500 hover:text-rose-400 transition"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                             </button>
                           </div>
                         </div>

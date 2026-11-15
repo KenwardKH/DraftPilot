@@ -136,31 +136,32 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4">
+      <div className="w-full max-w-lg rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-900/80">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-lg bg-indigo-600/20 p-2 text-indigo-400 border border-indigo-500/30">
+        <div className="flex items-center justify-between border-b border-slate-800 px-4 sm:px-6 py-3 sm:py-4 bg-slate-900/90">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="shrink-0 rounded-lg bg-indigo-600/20 p-2 text-indigo-400 border border-indigo-500/30">
               <Settings className="h-4 w-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-white">AI Gateway & BYOK Settings</h3>
-              <p className="text-[11px] text-slate-400">Configure local 9Router or custom AI provider endpoints.</p>
+            <div className="overflow-hidden">
+              <h3 className="text-xs sm:text-sm font-semibold text-white truncate">AI Gateway & BYOK Settings</h3>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">Configure local 9Router or custom AI provider endpoints.</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition shrink-0"
+            aria-label="Close settings"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs">
           {/* Section 1: Host Environment Defaults */}
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-2.5">
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 sm:p-4 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-300 font-semibold">
                 <Server className="h-3.5 w-3.5 text-indigo-400" />
@@ -171,7 +172,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
               <div className="rounded-lg bg-slate-900/90 p-2.5 border border-slate-800/80">
                 <span className="text-slate-500 block">Base URL</span>
                 <span className="font-mono text-slate-200 truncate block">
@@ -192,17 +193,17 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
 
           {/* Section 2: BYOK Override Toggle */}
           <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 p-3.5">
-              <div className="flex items-center gap-2.5">
-                <Key className="h-4 w-4 text-amber-400" />
+            <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 p-3 sm:p-3.5">
+              <div className="flex items-center gap-2.5 pr-2">
+                <Key className="h-4 w-4 text-amber-400 shrink-0" />
                 <div>
                   <span className="font-semibold text-slate-200 block text-xs">Custom BYOK Override</span>
-                  <span className="text-[11px] text-slate-400 block">
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 block">
                     Use your own API key (stored strictly in browser localStorage).
                   </span>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
                   type="checkbox"
                   checked={isCustom}
@@ -215,7 +216,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
 
             {/* Custom Inputs (Displayed when isCustom is active) */}
             {isCustom && (
-              <div className="space-y-3 rounded-xl border border-indigo-950/60 bg-indigo-950/10 p-4 animate-in fade-in duration-200">
+              <div className="space-y-3 rounded-xl border border-indigo-950/60 bg-indigo-950/10 p-3.5 sm:p-4 animate-in fade-in duration-200">
                 <div>
                   <label className="block font-medium text-slate-300 mb-1">
                     OpenAI-Compatible Base URL <span className="text-rose-400">*</span>
@@ -225,7 +226,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
                     placeholder="e.g. http://localhost:20128/v1 or https://openrouter.ai/api/v1"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 sm:py-2 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
 
@@ -239,12 +240,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
                       placeholder="sk-..."
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 pr-9 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 sm:py-2 pr-9 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1"
                     >
                       {showApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
@@ -260,7 +261,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
                     placeholder="e.g. gemini-2.5-flash, gpt-4o-mini, coding-free"
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 sm:py-2 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -287,23 +288,23 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-between border-t border-slate-800 px-6 py-3.5 bg-slate-900/90">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 border-t border-slate-800 px-4 sm:px-6 py-3 sm:py-3.5 bg-slate-900/90">
           <button
             type="button"
             onClick={handleTestConnection}
             disabled={isTesting || (isCustom && (!baseUrl || !apiKey || !model))}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 transition disabled:opacity-50"
+            className="min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 transition disabled:opacity-50 w-full sm:w-auto"
           >
             {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" /> : <Zap className="h-3.5 w-3.5 text-amber-400" />}
             <span>Test Connection</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {isCustom && (
               <button
                 type="button"
                 onClick={handleResetToHost}
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 hover:text-white transition"
+                className="min-h-[40px] flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs text-slate-400 hover:text-white transition"
               >
                 <RotateCcw className="h-3 w-3" />
                 <span>Reset</span>
@@ -313,7 +314,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: SettingsMo
             <button
               type="button"
               onClick={handleSave}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition"
+              className="min-h-[40px] flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition shadow-md shadow-indigo-600/20"
             >
               <span>Save & Apply</span>
             </button>

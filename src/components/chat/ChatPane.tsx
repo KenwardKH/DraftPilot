@@ -447,13 +447,13 @@ export function ChatPane({
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-slate-950">
       {/* Chat Header Bar */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/60 px-4">
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-indigo-400" />
-          <span className="text-xs font-semibold text-slate-300">
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/60 px-3 sm:px-4">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <Bot className="h-4 w-4 text-indigo-400 shrink-0" />
+          <span className="text-xs font-semibold text-slate-300 truncate">
             {projectName ? `${projectName} Chat` : 'AI Project Chat'}
           </span>
-          <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 font-mono">
+          <span className="hidden sm:inline-block rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 font-mono shrink-0">
             SSE + Tools
           </span>
         </div>
@@ -528,7 +528,7 @@ export function ChatPane({
       <div
         ref={chatContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 sm:space-y-4"
       >
         {isLoadingHistory ? (
           <div className="flex h-32 items-center justify-center text-slate-500">
@@ -565,7 +565,7 @@ export function ChatPane({
               return (
                 <div
                   key={msg.id}
-                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex gap-2.5 sm:gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.role !== 'user' && (
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
@@ -574,7 +574,7 @@ export function ChatPane({
                   )}
 
                   <div
-                    className={`max-w-[85%] rounded-xl px-4 py-3 text-xs leading-relaxed ${
+                    className={`max-w-[92%] sm:max-w-[85%] rounded-xl px-3.5 sm:px-4 py-2.5 sm:py-3 text-xs leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-indigo-600 text-white shadow-sm'
                         : 'bg-slate-900 border border-slate-800/80 text-slate-200'
@@ -612,11 +612,11 @@ export function ChatPane({
 
             {/* Live Streaming Assistant Bubble */}
             {isStreaming && (
-              <div className="flex gap-3 justify-start">
+              <div className="flex gap-2.5 sm:gap-3 justify-start">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
                   <Bot className="h-4 w-4 animate-pulse" />
                 </div>
-                <div className="max-w-[85%] rounded-xl bg-slate-900 border border-slate-800/80 px-4 py-3 text-xs leading-relaxed text-slate-200">
+                <div className="max-w-[92%] sm:max-w-[85%] rounded-xl bg-slate-900 border border-slate-800/80 px-3.5 sm:px-4 py-2.5 sm:py-3 text-xs leading-relaxed text-slate-200">
                   {streamingToolCalls.length > 0 && (
                     <ToolCallsDisplay
                       toolCalls={streamingToolCalls}
@@ -648,29 +648,29 @@ export function ChatPane({
       </div>
 
       {/* Input Message Area */}
-      <div className="border-t border-slate-800/80 bg-slate-900/50 p-3">
+      <div className="border-t border-slate-800/80 bg-slate-900/50 p-2.5 sm:p-3">
         <div className="relative flex flex-col rounded-xl border border-slate-800 bg-slate-950 shadow-inner focus-within:border-indigo-600/70 transition">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isStreaming}
-            placeholder={`Message AI co-pilot about ${projectName || 'project'}... (e.g. "Add 3 tasks for auth and update notes")`}
+            placeholder={`Message AI co-pilot about ${projectName || 'project'}...`}
             rows={2}
-            className="w-full resize-none bg-transparent px-3 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none"
+            className="w-full resize-none bg-transparent px-3 py-2 sm:py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none"
           />
 
           <div className="flex items-center justify-between border-t border-slate-800/50 px-3 py-1.5 bg-slate-900/30">
-            <span className="text-[10px] text-slate-500">
+            <span className="text-[10px] text-slate-500 hidden sm:inline">
               Shift + Enter for new line
             </span>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 ml-auto">
               {isStreaming ? (
                 <button
                   type="button"
                   onClick={handleStopStreaming}
-                  className="flex items-center gap-1 rounded-md bg-rose-600/80 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-rose-600"
+                  className="min-h-[36px] flex items-center gap-1 rounded-md bg-rose-600/80 px-3 py-1 text-xs font-medium text-white transition hover:bg-rose-600"
                 >
                   <Square className="h-3 w-3 fill-current" />
                   <span>Stop</span>
@@ -680,7 +680,7 @@ export function ChatPane({
                   type="button"
                   onClick={() => handleSend()}
                   disabled={!input.trim()}
-                  className="flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600"
+                  className="min-h-[36px] flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 sm:px-3 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 shadow-sm"
                 >
                   <Send className="h-3 w-3" />
                   <span>Send</span>
