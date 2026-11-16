@@ -89,7 +89,7 @@ Follow these step-by-step instructions to get DraftPilot running locally:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/interactive-ai-project-workspace.git
+git clone https://github.com/KenwardKH/DraftPilot.git
 cd interactive-ai-project-workspace
 ```
 
@@ -127,7 +127,7 @@ Inspect the variables in `.env.local`:
 
 1. Ensure **9Router** is running locally:
    ```bash
-   9router start
+   9router
    # Verify that http://localhost:20128/v1 is listening
    ```
 
